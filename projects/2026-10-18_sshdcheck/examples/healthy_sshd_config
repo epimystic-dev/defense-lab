@@ -1,0 +1,30 @@
+# healthy_sshd_config - a hardened sshd_config shaped to the Mozilla
+# OpenSSH Guidelines and the CIS Linux Benchmark. Values here are the
+# shape the lab's rules consider HEALTHY; the file is synthetic and
+# does not describe any real host.
+
+Port 22
+Protocol 2
+
+PermitRootLogin no
+PasswordAuthentication no
+PermitEmptyPasswords no
+HostbasedAuthentication no
+PubkeyAuthentication yes
+IgnoreRhosts yes
+
+MaxAuthTries 4
+LoginGraceTime 60
+ClientAliveInterval 300
+ClientAliveCountMax 3
+
+X11Forwarding no
+AllowTcpForwarding no
+UsePAM yes
+
+LogLevel INFO
+Banner /etc/issue.net
+
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
+KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha256

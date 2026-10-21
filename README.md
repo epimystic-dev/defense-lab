@@ -35,8 +35,9 @@ Each folder has its own README, tests and LICENSE; click through for install and
 
 | Tool | What it does | Layer |
 |---|---|---|
+| [sshdcheck](projects/2026-10-18_sshdcheck/) | Static hardening linter for `sshd_config`: fifteen posture rules against CIS, Mozilla OpenSSH, and NIST SP 800-53. | linter |
 
-*The first artifacts arrive on the weekly cycle; the radar publishes every Monday.*
+*The radar publishes every Monday.*
 
 ## How it is made (and what that means)
 

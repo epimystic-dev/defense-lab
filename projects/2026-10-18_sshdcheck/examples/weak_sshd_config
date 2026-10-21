@@ -1,0 +1,25 @@
+# weak_sshd_config - a synthetic sshd_config shaped to demonstrate what
+# this linter catches. Every weakness here is a shape, not an attack.
+
+Port 22
+Protocol 2,1
+
+PermitRootLogin yes
+PasswordAuthentication yes
+PermitEmptyPasswords yes
+HostbasedAuthentication yes
+IgnoreRhosts no
+
+MaxAuthTries 10
+LoginGraceTime 300
+ClientAliveInterval 0
+ClientAliveCountMax 10
+
+X11Forwarding yes
+UsePAM no
+
+LogLevel ERROR
+
+Ciphers aes128-cbc,3des-cbc,arcfour256
+MACs hmac-md5,hmac-sha1-96,umac-64@openssh.com
+KexAlgorithms diffie-hellman-group1-sha1,diffie-hellman-group14-sha1

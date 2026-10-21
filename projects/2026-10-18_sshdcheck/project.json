@@ -1,0 +1,13 @@
+{
+  "name": "sshdcheck",
+  "slug": "2026-10-18_sshdcheck",
+  "kind": "linter",
+  "one_liner": "Static hardening linter for sshd_config files - flags fifteen posture defects against CIS, Mozilla OpenSSH, and NIST SP 800-53 controls.",
+  "problem": "Default OpenSSH server configurations ship permissive settings - root login allowed, password authentication on, weak cipher defaults inherited from compile-time, no session idle timeout. Shodan continues to show over twenty million exposed sshd services, and the CIS Linux Benchmark 2026 revision reaffirms that the operator's own saved sshd_config is the file where the posture is pinned. sshdcheck reads an sshd_config file the operator has already saved and flags fifteen posture defects: PermitRootLogin yes-or-unspecified, PasswordAuthentication yes-or-unspecified, PermitEmptyPasswords yes, Protocol 1 declared, X11Forwarding yes, MaxAuthTries > 4, LoginGraceTime > 60s or unlimited, ClientAlive settings leaving idle sessions open, HostbasedAuthentication yes, IgnoreRhosts no-or-unspecified, Ciphers / MACs / KexAlgorithms outside Mozilla's modern allowlist, LogLevel below INFO, and UsePAM no. Every rule cites the public control it implements (CIS section id, Mozilla guideline, NIST control, CWE id). The tool reads a saved file; it never touches a live SSH server.",
+  "language": "python",
+  "test_cmd": "python -m unittest discover -s tests",
+  "build_cmd": "python -m pip install -e .",
+  "deps": [],
+  "license": "MIT",
+  "clean_room": "Rules are derived from the public text of the CIS Benchmark for Linux Distributions section 5.2 (SSH Server Configuration), the public Mozilla OpenSSH Guidelines at infosec.mozilla.org, the public NIST SP 800-53 Revision 5 catalog (AC-6, AC-7, AC-17, IA-2, IA-5, AU-2, SC-8), the public NIST SP 800-63B digital-identity guidelines, the public MITRE CWE-327 entry, and the public sshd_config(5) manual page. No reference implementation of any ssh-hardening scanner was read, vendored, or mirrored."
+}
