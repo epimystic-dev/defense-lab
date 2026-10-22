@@ -73,6 +73,20 @@ class Hdr002Tests(unittest.TestCase):
         )
         self.assertIn("HDR-002", rule_ids(scan_string(text, HTTPS)))
 
+    def test_negative_max_age_fires_high(self):
+        # RFC 6797 section 6.1.1 requires a non-negative integer. A
+        # negative value makes browsers reject the header entirely, so
+        # the response ends up with no HSTS commit; that belongs with
+        # max-age=0 at HIGH, not at MEDIUM alongside merely-short values.
+        text = http_response(
+            "Strict-Transport-Security: max-age=-100\n"
+            "Content-Type: text/html\n"
+        )
+        f = [x for x in scan_string(text, HTTPS) if x.rule_id == "HDR-002"]
+        self.assertTrue(f, "HDR-002 did not fire for negative max-age")
+        self.assertEqual(f[0].severity, Severity.HIGH)
+        self.assertIn("-100", f[0].message)
+
 
 class Hdr003Tests(unittest.TestCase):
     def test_fires_only_under_include_info(self):

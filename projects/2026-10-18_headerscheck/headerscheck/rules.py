@@ -145,6 +145,22 @@ def _check_hsts_max_age(response, path, options, context):
             "set max-age=31536000",
             citation,
         )]
+    if n < 0:
+        # RFC 6797 section 6.1.1 requires max-age to be a non-negative
+        # integer. A negative value makes the header syntactically
+        # invalid, so browsers discard it entirely - leaving the client
+        # with no HSTS commit, operationally equivalent to the header
+        # being absent.
+        return [_mk(
+            "HDR-002", Severity.HIGH,
+            "Strict-Transport-Security max-age is negative ("
+            + str(n) + "); browsers reject the header and apply no HSTS",
+            "Strict-Transport-Security", path,
+            "set max-age=31536000; RFC 6797 section 6.1.1 requires a"
+            " non-negative integer, so a negative value yields no HSTS"
+            " at all",
+            citation,
+        )]
     if n == 0:
         # max-age=0 is explicitly used to disable HSTS; flag HIGH.
         return [_mk(
