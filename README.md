@@ -36,6 +36,7 @@ Each folder has its own README, tests and LICENSE; click through for install and
 | Tool | What it does | Layer |
 |---|---|---|
 | [sshdcheck](projects/2026-10-18_sshdcheck/) | Static hardening linter for `sshd_config`: fifteen posture rules against CIS, Mozilla OpenSSH, and NIST SP 800-53. | linter |
+| [headerscheck](projects/2026-10-18_headerscheck/) | Static security-header posture linter for saved HTTP responses: sixteen rules against OWASP Secure Headers, OWASP ASVS v4, RFC 6265bis, RFC 6797. | linter |
 
 *The radar publishes every Monday.*
 

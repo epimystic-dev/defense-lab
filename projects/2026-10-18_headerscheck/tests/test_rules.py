@@ -1,0 +1,331 @@
+"""Rule-level tests - one focused suite per rule in REGISTRY."""
+
+from __future__ import annotations
+
+import unittest
+
+from headerscheck.rules import REGISTRY
+from headerscheck.types import Options, Severity
+
+from tests.support import rule_ids, scan_string
+
+
+def http_response(headers_block: str, status_line: str = "HTTP/1.1 200 OK") -> str:
+    return status_line + "\n" + headers_block + "\n"
+
+
+HTTPS = Options(assume_https=True)
+HTTP = Options(assume_https=False)
+
+
+class Hdr001Tests(unittest.TestCase):
+    def test_missing_hsts_on_https_fires(self):
+        text = http_response("Content-Type: text/html\n")
+        self.assertIn("HDR-001", rule_ids(scan_string(text, HTTPS)))
+
+    def test_present_hsts_is_clean(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+        )
+        self.assertNotIn("HDR-001", rule_ids(scan_string(text, HTTPS)))
+
+    def test_http_does_not_fire(self):
+        text = http_response("Content-Type: text/html\n")
+        self.assertNotIn("HDR-001", rule_ids(scan_string(text, HTTP)))
+
+
+class Hdr002Tests(unittest.TestCase):
+    def test_short_max_age_fires(self):
+        text = http_response(
+            "Strict-Transport-Security: max-age=100\n"
+            "Content-Type: text/html\n"
+        )
+        self.assertIn("HDR-002", rule_ids(scan_string(text, HTTPS)))
+
+    def test_max_age_zero_fires_high(self):
+        text = http_response(
+            "Strict-Transport-Security: max-age=0\n"
+            "Content-Type: text/html\n"
+        )
+        f = [x for x in scan_string(text, HTTPS) if x.rule_id == "HDR-002"]
+        self.assertTrue(f)
+        self.assertEqual(f[0].severity, Severity.HIGH)
+
+    def test_long_max_age_is_clean(self):
+        text = http_response(
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Type: text/html\n"
+        )
+        self.assertNotIn("HDR-002", rule_ids(scan_string(text, HTTPS)))
+
+    def test_missing_max_age_fires(self):
+        text = http_response(
+            "Strict-Transport-Security: includeSubDomains\n"
+            "Content-Type: text/html\n"
+        )
+        self.assertIn("HDR-002", rule_ids(scan_string(text, HTTPS)))
+
+    def test_non_integer_max_age_fires(self):
+        text = http_response(
+            "Strict-Transport-Security: max-age=notanumber\n"
+            "Content-Type: text/html\n"
+        )
+        self.assertIn("HDR-002", rule_ids(scan_string(text, HTTPS)))
+
+
+class Hdr003Tests(unittest.TestCase):
+    def test_fires_only_under_include_info(self):
+        text = http_response(
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Type: text/html\n"
+        )
+        default = rule_ids(scan_string(text, HTTPS))
+        self.assertNotIn("HDR-003", default)
+        opts = Options(assume_https=True, include_info=True)
+        self.assertIn("HDR-003", rule_ids(scan_string(text, opts)))
+
+
+class Hdr005Tests(unittest.TestCase):
+    def test_missing_csp_on_html_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+        )
+        self.assertIn("HDR-005", rule_ids(scan_string(text, HTTPS)))
+
+    def test_json_response_does_not_fire(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+        )
+        self.assertNotIn("HDR-005", rule_ids(scan_string(text, HTTPS)))
+
+
+class Hdr006Tests(unittest.TestCase):
+    def test_unsafe_inline_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Security-Policy: default-src 'self' 'unsafe-inline'\n"
+        )
+        f = [x for x in scan_string(text, HTTPS) if x.rule_id == "HDR-006"]
+        self.assertTrue(f)
+        self.assertEqual(f[0].severity, Severity.HIGH)
+
+    def test_unsafe_eval_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Security-Policy: default-src 'self'; script-src 'unsafe-eval'\n"
+        )
+        self.assertIn("HDR-006", rule_ids(scan_string(text, HTTPS)))
+
+    def test_clean_csp_does_not_fire(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Security-Policy: default-src 'self'; frame-ancestors 'none'\n"
+        )
+        self.assertNotIn("HDR-006", rule_ids(scan_string(text, HTTPS)))
+
+
+class Hdr007Tests(unittest.TestCase):
+    def test_wildcard_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Security-Policy: default-src 'self'; script-src *\n"
+        )
+        self.assertIn("HDR-007", rule_ids(scan_string(text, HTTPS)))
+
+    def test_scheme_only_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Security-Policy: default-src 'self'; script-src https:\n"
+        )
+        self.assertIn("HDR-007", rule_ids(scan_string(text, HTTPS)))
+
+    def test_specific_host_is_clean(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; script-src 'self' https://cdn.example.test\n"
+        )
+        self.assertNotIn("HDR-007", rule_ids(scan_string(text, HTTPS)))
+
+
+class Hdr008Tests(unittest.TestCase):
+    def test_missing_fires(self):
+        text = http_response("Content-Type: text/html\n")
+        self.assertIn("HDR-008", rule_ids(scan_string(text, HTTPS)))
+
+    def test_wrong_value_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "X-Content-Type-Options: allow\n"
+        )
+        self.assertIn("HDR-008", rule_ids(scan_string(text, HTTPS)))
+
+    def test_correct_value_is_clean(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "X-Content-Type-Options: nosniff\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Security-Policy: default-src 'self'; frame-ancestors 'none'\n"
+        )
+        self.assertNotIn("HDR-008", rule_ids(scan_string(text, HTTPS)))
+
+
+class Hdr009Tests(unittest.TestCase):
+    def test_neither_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+        )
+        self.assertIn("HDR-009", rule_ids(scan_string(text, HTTPS)))
+
+    def test_x_frame_options_satisfies(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Content-Security-Policy: default-src 'self'\n"
+            "X-Content-Type-Options: nosniff\n"
+            "X-Frame-Options: DENY\n"
+        )
+        self.assertNotIn("HDR-009", rule_ids(scan_string(text, HTTPS)))
+
+    def test_csp_frame_ancestors_satisfies(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "X-Content-Type-Options: nosniff\n"
+            "Content-Security-Policy: default-src 'self'; frame-ancestors 'none'\n"
+        )
+        self.assertNotIn("HDR-009", rule_ids(scan_string(text, HTTPS)))
+
+
+class Hdr012Tests(unittest.TestCase):
+    def test_versioned_server_fires_under_include_info(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Server: nginx/1.18.0\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+        )
+        opts = Options(assume_https=True, include_info=True)
+        self.assertIn("HDR-012", rule_ids(scan_string(text, opts)))
+
+    def test_x_powered_by_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "X-Powered-By: Express\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+        )
+        opts = Options(assume_https=True, include_info=True)
+        self.assertIn("HDR-012", rule_ids(scan_string(text, opts)))
+
+    def test_server_name_only_no_version_is_clean(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Server: cloudflare\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+        )
+        opts = Options(assume_https=True, include_info=True)
+        f = [x for x in scan_string(text, opts)
+             if x.rule_id == "HDR-012" and x.header == "Server"]
+        self.assertFalse(f)
+
+
+class Hdr013Tests(unittest.TestCase):
+    def test_cookie_without_secure_on_https_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: sid=abc; HttpOnly; SameSite=Lax\n"
+        )
+        self.assertIn("HDR-013", rule_ids(scan_string(text, HTTPS)))
+
+    def test_cookie_with_secure_is_clean(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: sid=abc; Secure; HttpOnly; SameSite=Lax\n"
+        )
+        self.assertNotIn("HDR-013", rule_ids(scan_string(text, HTTPS)))
+
+    def test_http_does_not_fire(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Set-Cookie: sid=abc; HttpOnly; SameSite=Lax\n"
+        )
+        self.assertNotIn("HDR-013", rule_ids(scan_string(text, HTTP)))
+
+
+class Hdr014Tests(unittest.TestCase):
+    def test_cookie_without_httponly_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: sid=abc; Secure; SameSite=Lax\n"
+        )
+        self.assertIn("HDR-014", rule_ids(scan_string(text, HTTPS)))
+
+
+class Hdr015Tests(unittest.TestCase):
+    def test_cookie_without_samesite_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: sid=abc; Secure; HttpOnly\n"
+        )
+        self.assertIn("HDR-015", rule_ids(scan_string(text, HTTPS)))
+
+
+class Hdr016Tests(unittest.TestCase):
+    def test_wildcard_plus_credentials_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Access-Control-Allow-Origin: *\n"
+            "Access-Control-Allow-Credentials: true\n"
+        )
+        self.assertIn("HDR-016", rule_ids(scan_string(text, HTTPS)))
+
+    def test_specific_origin_plus_credentials_is_clean(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Access-Control-Allow-Origin: https://partner.example.test\n"
+            "Access-Control-Allow-Credentials: true\n"
+        )
+        self.assertNotIn("HDR-016", rule_ids(scan_string(text, HTTPS)))
+
+
+class RegistryIntegrityTests(unittest.TestCase):
+    def test_rule_ids_are_unique(self):
+        ids = [r.id for r in REGISTRY]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_first_rule_is_hdr_001(self):
+        self.assertEqual(REGISTRY[0].id, "HDR-001")
+
+
+class DisableAndOnlyTests(unittest.TestCase):
+    def test_disable_suppresses(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+        )
+        opts = Options(assume_https=True, disabled=("HDR-001",))
+        self.assertNotIn("HDR-001", rule_ids(scan_string(text, opts)))
+
+    def test_only_restricts(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+        )
+        opts = Options(assume_https=True, only=("HDR-001",))
+        self.assertEqual(set(rule_ids(scan_string(text, opts))), {"HDR-001"})
+
+
+if __name__ == "__main__":
+    unittest.main()

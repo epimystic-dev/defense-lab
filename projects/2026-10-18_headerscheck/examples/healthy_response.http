@@ -1,0 +1,8 @@
+HTTP/2 200
+content-type: text/html; charset=utf-8
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+content-security-policy: default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; script-src 'self'
+x-content-type-options: nosniff
+referrer-policy: strict-origin-when-cross-origin
+permissions-policy: camera=(), microphone=(), geolocation=()
+set-cookie: sid=abc; Path=/; Secure; HttpOnly; SameSite=Lax

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "headerscheck"
+version = "0.1.0"
+description = "Static security-header posture linter for saved HTTP responses - flags sixteen posture defects against OWASP Secure Headers, OWASP ASVS v4, IETF RFC 6265bis, and RFC 6797."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["http", "security-headers", "owasp", "hsts", "csp", "linter", "defender"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Internet :: WWW/HTTP",
+]
+
+[project.scripts]
+headerscheck = "headerscheck.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["headerscheck*"]
+exclude = ["tests*", "examples*"]

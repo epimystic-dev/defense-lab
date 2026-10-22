@@ -1,0 +1,13 @@
+{
+  "name": "headerscheck",
+  "slug": "2026-10-18_headerscheck",
+  "kind": "linter",
+  "one_liner": "Static security-header posture linter for saved HTTP responses - flags sixteen posture defects against OWASP Secure Headers, OWASP ASVS v4, IETF RFC 6265bis, and RFC 6797.",
+  "problem": "Response-header posture is one of the most common defensive gaps surfaced by both OWASP Web Security Testing Guide and OWASP ASVS v4 reviews. The OWASP Secure Headers Project maintains the public baseline (Strict-Transport-Security, Content-Security-Policy, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, X-Frame-Options or CSP frame-ancestors), and the cookie-attribute spec (IETF RFC 6265bis) adds Secure / HttpOnly / SameSite. Each of these is a shape in a response the operator has already captured - the per-response posture lives on the file surface, which makes it a lintable surface. headerscheck reads a raw HTTP response text file, a headers-only file (what curl -D writes), or a HAR entry the operator has saved and flags sixteen posture defects: missing or weak HSTS (max-age < 15552000, missing includeSubDomains / preload), missing or unsafe CSP (unsafe-inline / unsafe-eval, wildcard script-src), missing X-Content-Type-Options nosniff, no clickjacking protection (neither X-Frame-Options nor CSP frame-ancestors), missing or weak Referrer-Policy, missing Permissions-Policy on HTML, versioned Server / X-Powered-By banners, cookies missing Secure / HttpOnly / SameSite, and the Access-Control-Allow-Origin * with Access-Control-Allow-Credentials: true specification contradiction. Every rule cites the public control it implements. The tool reads a saved file; it never connects to any live service.",
+  "language": "python",
+  "test_cmd": "python -m unittest discover -s tests",
+  "build_cmd": "python -m pip install -e .",
+  "deps": [],
+  "license": "MIT",
+  "clean_room": "Rules are derived from the public text of the OWASP Secure Headers Project (owasp.org/www-project-secure-headers), the OWASP Application Security Verification Standard v4 (sections V3.4 and V14.4), the public IETF documents RFC 6797 (HSTS), RFC 6265bis (cookies), the W3C Content Security Policy Level 3 draft, the W3C Permissions Policy draft, and the WHATWG Fetch Living Standard CORS section. No reference implementation of any security-header scanner was read, vendored, or mirrored."
+}
