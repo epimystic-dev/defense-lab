@@ -344,7 +344,19 @@ def _check_client_alive(index, path, content, options, context):
         ))
     else:
         interval_seconds = _parse_time_spec(interval.value)
-        if interval_seconds == 0:
+        if interval_seconds is None:
+            # Unparseable duration: the operator's intent is undefined,
+            # so the posture is not pinned. Parity with SSH-006 and
+            # SSH-007, which flag unparseable values on their own
+            # keywords.
+            out.append(_mk(
+                "SSH-008", Severity.MEDIUM,
+                "ClientAliveInterval value is not a parseable duration: "
+                + interval.value,
+                "ClientAliveInterval", interval.line, path,
+                "set ClientAliveInterval 300 (5 minutes)", citation,
+            ))
+        elif interval_seconds == 0:
             out.append(_mk(
                 "SSH-008", Severity.MEDIUM,
                 "ClientAliveInterval is 0; idle sessions can persist"
@@ -357,7 +369,17 @@ def _check_client_alive(index, path, content, options, context):
             cmax = int(count.value.split()[0])
         except (ValueError, IndexError):
             cmax = None
-        if cmax is not None and cmax > 3:
+        if cmax is None:
+            # Unparseable integer: parity with the SSH-006 branch that
+            # flags a non-integer MaxAuthTries value.
+            out.append(_mk(
+                "SSH-008", Severity.MEDIUM,
+                "ClientAliveCountMax value is not an integer: "
+                + count.value,
+                "ClientAliveCountMax", count.line, path,
+                "set ClientAliveCountMax to 3 or less", citation,
+            ))
+        elif cmax > 3:
             out.append(_mk(
                 "SSH-008", Severity.MEDIUM,
                 "ClientAliveCountMax is " + str(cmax) + " (threshold 3)",

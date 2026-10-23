@@ -136,6 +136,26 @@ class Ssh008Tests(unittest.TestCase):
         )
         self.assertNotIn("SSH-008", rule_ids(scan_string(text)))
 
+    def test_unparseable_interval_fires(self):
+        # Parity with SSH-006 / SSH-007: an unparseable value is a
+        # posture defect, not silently clean.
+        text = (
+            "ClientAliveInterval banana\n"
+            "ClientAliveCountMax 3\n"
+        )
+        f = [x for x in scan_string(text) if x.rule_id == "SSH-008"]
+        self.assertTrue(f)
+        self.assertIn("not a parseable duration", f[0].message)
+
+    def test_unparseable_count_fires(self):
+        text = (
+            "ClientAliveInterval 300\n"
+            "ClientAliveCountMax banana\n"
+        )
+        f = [x for x in scan_string(text) if x.rule_id == "SSH-008"]
+        self.assertTrue(f)
+        self.assertIn("not an integer", f[0].message)
+
 
 class Ssh009Tests(unittest.TestCase):
     def test_hostbased_yes_fires(self):
