@@ -220,6 +220,93 @@ class Hdr009Tests(unittest.TestCase):
         self.assertNotIn("HDR-009", rule_ids(scan_string(text, HTTPS)))
 
 
+class Hdr010Tests(unittest.TestCase):
+    """Referrer-Policy. Info-severity, so tests opt in with include_info.
+
+    The W3C "parse a referrer policy from a Referrer-Policy header"
+    algorithm walks a comma-separated list and keeps the LAST
+    recognised token, so a weak fallback silently overrides a stronger
+    primary - these tests pin that behaviour down.
+    """
+
+    OPTS = Options(assume_https=True, include_info=True)
+
+    def _findings(self, text):
+        return [f for f in scan_string(text, self.OPTS)
+                if f.rule_id == "HDR-010"]
+
+    def test_missing_fires(self):
+        text = http_response("Content-Type: text/html\n")
+        self.assertIn("HDR-010", rule_ids(scan_string(text, self.OPTS)))
+
+    def test_strict_single_policy_is_clean(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Referrer-Policy: strict-origin-when-cross-origin\n"
+        )
+        self.assertFalse(self._findings(text))
+
+    def test_unsafe_url_single_policy_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Referrer-Policy: unsafe-url\n"
+        )
+        f = self._findings(text)
+        self.assertTrue(f)
+        self.assertIn("weak", f[0].message)
+
+    def test_weak_fallback_after_strong_primary_fires(self):
+        # Regression test for the W3C fallback-list parse. Without the
+        # effective-policy walk, the whole value "strict-origin-when-
+        # cross-origin, unsafe-url" is not in the weak set and the rule
+        # reports clean - but browsers use the LAST recognised token
+        # (unsafe-url), so the effective posture is weak.
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Referrer-Policy: strict-origin-when-cross-origin, unsafe-url\n"
+        )
+        f = self._findings(text)
+        self.assertTrue(f, "weak fallback must be flagged")
+        self.assertIn("unsafe-url", f[0].message)
+        self.assertIn("last recognised token", f[0].message)
+
+    def test_strong_fallback_after_unknown_primary_is_clean(self):
+        # "foobar" is not a recognised policy token, so the algorithm
+        # walks past it and settles on strict-origin-when-cross-origin.
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Referrer-Policy: foobar, strict-origin-when-cross-origin\n"
+        )
+        self.assertFalse(self._findings(text))
+
+    def test_strong_primary_with_unknown_trailing_is_clean(self):
+        # Unknown trailing tokens are ignored; the algorithm keeps the
+        # last recognised value, which is the strong primary.
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Referrer-Policy: strict-origin-when-cross-origin, foobar\n"
+        )
+        self.assertFalse(self._findings(text))
+
+    def test_all_tokens_unrecognised_fires(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Referrer-Policy: foobar, bazbar\n"
+        )
+        f = self._findings(text)
+        self.assertTrue(f)
+        self.assertIn("no recognised policy token", f[0].message)
+
+    def test_info_severity_hidden_by_default(self):
+        text = http_response(
+            "Content-Type: text/html\n"
+            "Referrer-Policy: unsafe-url\n"
+        )
+        # HTTPS Options defaults have include_info=False, so HDR-010
+        # (INFO) must not surface.
+        self.assertNotIn("HDR-010", rule_ids(scan_string(text, HTTPS)))
+
+
 class Hdr012Tests(unittest.TestCase):
     def test_versioned_server_fires_under_include_info(self):
         text = http_response(

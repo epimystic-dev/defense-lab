@@ -349,11 +349,44 @@ def _check_frame_protections(response, path, options, context):
     )]
 
 
+_REFERRER_POLICY_TOKENS = frozenset({
+    "no-referrer",
+    "no-referrer-when-downgrade",
+    "same-origin",
+    "origin",
+    "strict-origin",
+    "origin-when-cross-origin",
+    "strict-origin-when-cross-origin",
+    "unsafe-url",
+})
+
+
+def _effective_referrer_policy(raw: str) -> Optional[str]:
+    """Return the effective referrer policy per the W3C Referrer Policy
+    "parse a referrer policy from a Referrer-Policy header" algorithm:
+    split on commas and, for each recognised token in list order, set
+    the result to that token. The LAST recognised token therefore wins,
+    which lets authors declare a modern primary policy with an older
+    fallback - but equally lets a weak fallback silently override a
+    strong primary. Return None when no token in the list is a known
+    policy (browsers then treat the header as if unset).
+    """
+    policy: Optional[str] = None
+    for tok in raw.split(","):
+        tok = tok.strip().lower()
+        if tok in _REFERRER_POLICY_TOKENS:
+            policy = tok
+    return policy
+
+
 def _check_referrer_policy(response, path, options, context):
-    citation = "W3C Referrer Policy; OWASP Secure Headers Project"
-    v = response.get("Referrer-Policy").lower()
-    weak = {"", "unsafe-url", "no-referrer-when-downgrade"}
-    if not v:
+    citation = (
+        "W3C Referrer Policy (parse-a-referrer-policy algorithm);"
+        " OWASP Secure Headers Project"
+    )
+    raw = response.get("Referrer-Policy")
+    weak = {"unsafe-url", "no-referrer-when-downgrade"}
+    if not raw.strip():
         return [_mk(
             "HDR-010", Severity.INFO,
             "Referrer-Policy is missing",
@@ -362,15 +395,45 @@ def _check_referrer_policy(response, path, options, context):
             " (or no-referrer)",
             citation,
         )]
-    if v in weak:
+    effective = _effective_referrer_policy(raw)
+    if effective is None:
         return [_mk(
             "HDR-010", Severity.INFO,
-            "Referrer-Policy is weak: " + v,
+            "Referrer-Policy carries no recognised policy token (saw: "
+            + raw + "); browsers discard the header and fall back to"
+            " their default referrer behaviour",
             "Referrer-Policy", path,
             "set Referrer-Policy: strict-origin-when-cross-origin",
             citation,
         )]
-    return []
+    if effective not in weak:
+        return []
+    # The W3C algorithm walks the list and overwrites, so the LAST
+    # recognised token wins. If a weak token sits after a stronger one
+    # in a fallback list, the overall posture is still weak - say so
+    # explicitly, because the operator may have intended the stronger
+    # token to win.
+    normalised = raw.strip().lower()
+    if normalised == effective:
+        return [_mk(
+            "HDR-010", Severity.INFO,
+            "Referrer-Policy is weak: " + effective,
+            "Referrer-Policy", path,
+            "set Referrer-Policy: strict-origin-when-cross-origin",
+            citation,
+        )]
+    return [_mk(
+        "HDR-010", Severity.INFO,
+        "Referrer-Policy effective value is weak: " + effective
+        + " (last recognised token in '" + raw + "'); the W3C algorithm"
+        " walks the comma-separated list and uses the last token it"
+        " recognises, so this weak fallback overrides the stronger"
+        " primary",
+        "Referrer-Policy", path,
+        "put the strongest supported policy LAST in the fallback list,"
+        " or declare only strict-origin-when-cross-origin",
+        citation,
+    )]
 
 
 def _check_permissions_policy(response, path, options, context):
@@ -645,12 +708,18 @@ REGISTRY: List[Rule] = [
     Rule(
         id="HDR-010",
         severity=Severity.INFO,
-        title="Referrer-Policy is missing or weak",
+        title="Referrer-Policy is missing, weak, or weak after fallback",
         description=(
             "An absent or weak Referrer-Policy can leak request URLs"
-            " cross-origin."
+            " cross-origin. For comma-separated fallback lists, the"
+            " W3C algorithm uses the LAST recognised token, so a weak"
+            " value placed after a stronger primary silently overrides"
+            " it."
         ),
-        citation="W3C Referrer Policy; OWASP Secure Headers Project",
+        citation=(
+            "W3C Referrer Policy (parse-a-referrer-policy algorithm);"
+            " OWASP Secure Headers Project"
+        ),
         check=_check_referrer_policy,
     ),
     Rule(
