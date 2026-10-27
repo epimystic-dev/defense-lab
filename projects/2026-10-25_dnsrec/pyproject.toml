@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dnsrec"
+version = "0.1.0"
+description = "Static posture linter for SPF, DMARC, and DKIM DNS records - 27 rules against RFC 7208, RFC 7489, RFC 6376, M3AAWG, and NIST SP 800-177."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["spf", "dmarc", "dkim", "email", "dns", "linter", "hardening", "rfc7208", "rfc7489", "rfc6376"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Communications :: Email",
+]
+
+[project.scripts]
+dnsrec = "dnsrec.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["dnsrec*"]
+exclude = ["tests*", "examples*"]

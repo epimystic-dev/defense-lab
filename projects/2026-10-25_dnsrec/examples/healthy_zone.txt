@@ -1,0 +1,14 @@
+; healthy_zone.txt - synthetic BIND zone-file snippet with
+; email-authentication records in a healthy posture. Running dnsrec
+; against this file should yield zero findings.
+;
+; The DKIM key below is a synthetic ed25519 public key used only to
+; exercise the parser; it is not a usable signing key.
+
+$ORIGIN example.invalid.
+
+@             IN TXT "v=spf1 ip4:192.0.2.0/24 -all"
+
+_dmarc        IN TXT "v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s; rua=mailto:dmarc@example.invalid"
+
+sel1._domainkey IN TXT "v=DKIM1; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo="

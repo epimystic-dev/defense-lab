@@ -1,0 +1,13 @@
+{
+  "name": "dnsrec",
+  "slug": "2026-10-25_dnsrec",
+  "kind": "linter",
+  "one_liner": "Static posture linter for SPF, DMARC, and DKIM DNS records - 27 rules against RFC 7208, RFC 7489, RFC 6376, M3AAWG, and NIST SP 800-177.",
+  "problem": "Email-authentication records (SPF, DMARC, DKIM) are the single most common missing or misconfigured surface on operator-managed domains. After the 2024 bulk-sender enforcement wave (DMARC now required by multiple major mailbox providers for high-volume senders), the posture gap has shifted from 'no record' to 'record exists but is non-enforcing': DMARC p=none holding at monitor-only; SPF with >10 DNS lookups silently failing SPF-permerror; DMARC without rua= producing no visibility; DKIM selectors still on 1024-bit RSA. The posture lives in the operator's own zone file or saved TXT export. dnsrec reads a BIND-style zone file or a one-record-per-line TXT export and flags 27 posture defects: multiple SPF records at one owner, >10 SPF DNS lookups, permissive SPF +all / ?all, missing all mechanism, deprecated ptr, DMARC p=none, DMARC pct<100, DMARC missing rua, DMARC sp weaker than p, DKIM revoked keys (empty p), DKIM RSA <2048 bits, DKIM testing-mode t=y, and 15 more. Every rule cites the public control it implements. The tool reads a saved file; it never queries any DNS server.",
+  "language": "python",
+  "test_cmd": "python -m unittest discover -s tests",
+  "build_cmd": "python -m pip install -e .",
+  "deps": [],
+  "license": "MIT",
+  "clean_room": "Rules are derived from the public text of IETF RFC 7208 (SPF), RFC 7489 (DMARC), RFC 6376 (DKIM Signatures), RFC 8463 (A New Cryptographic Signature Method for DKIM - Ed25519), RFC 1035 (DNS implementation specifics for TXT record length), NIST SP 800-177 Revision 1 (Trustworthy Email), M3AAWG Email Authentication Best Common Practices (public document), and the public mailbox-provider bulk-sender requirements published by Google and Yahoo in 2024. No reference implementation of any DNS or email-authentication linter was read, vendored, or mirrored."
+}

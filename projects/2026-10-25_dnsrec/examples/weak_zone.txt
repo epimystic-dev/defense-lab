@@ -1,0 +1,65 @@
+; weak_zone.txt - synthetic BIND zone-file snippet shaped to demonstrate
+; what dnsrec catches. Every weakness here is a shape, not an attack.
+; Each line notes the rule(s) it is expected to fire.
+
+$ORIGIN example.invalid.
+
+; Two SPF records at @ (SPF-001). The first uses ptr (SPF-006) and
+; ends with +all (SPF-003).
+@             IN TXT "v=spf1 ptr:example.invalid +all"
+@             IN TXT "v=spf1 include:_spf.example.invalid -all"
+
+; SPF with 11 includes exceeding the 10-lookup cap (SPF-002).
+heavy         IN TXT "v=spf1 include:a.example.invalid include:b.example.invalid include:c.example.invalid include:d.example.invalid include:e.example.invalid include:f.example.invalid include:g.example.invalid include:h.example.invalid include:i.example.invalid include:j.example.invalid include:k.example.invalid -all"
+
+; SPF with soft-fail terminator (SPF-004).
+soft          IN TXT "v=spf1 include:_spf.example.net ~all"
+
+; SPF with no all terminator (SPF-005).
+notailer      IN TXT "v=spf1 include:_spf.example.net"
+
+; SPF with any-source wildcard (SPF-009).
+wildcard      IN TXT "v=spf1 ip4:0.0.0.0/0 -all"
+
+; SPF-shaped record with a mis-typed version tag (SPF-008). Classified
+; as SPF by the loose v=spf prefix match so the version rule actually
+; sees it.
+mispref       IN TXT "v=spf2 include:_spf.example.net -all"
+
+; SPF record whose logical body exceeds a single 255-byte quoted
+; string (SPF-007; INFO).
+longspf       IN TXT "v=spf1 include:spamalot.example.invalid include:deliveries.example.invalid include:marketing.example.invalid include:newsletter.example.invalid include:transactional.example.invalid include:notifications.example.invalid include:alerts.example.invalid include:system.example.invalid -all"
+
+; DMARC p=none with pct<100, missing rua, relaxed alignment
+; (DMARC-001, DMARC-005, DMARC-006, DMARC-007, DMARC-008).
+_dmarc        IN TXT "v=DMARC1; p=none; pct=50; adkim=r; aspf=r"
+
+; DMARC p=quarantine with sp=none weaker than p (DMARC-002, DMARC-009).
+_dmarc.sub1   IN TXT "v=DMARC1; p=quarantine; sp=none; rua=mailto:dmarc@example.invalid; adkim=s; aspf=s"
+
+; DMARC record missing the required p= tag (DMARC-003).
+_dmarc.sub2   IN TXT "v=DMARC1; rua=mailto:dmarc@example.invalid"
+
+; DMARC-shaped record with wrong version (DMARC-004).
+_dmarc.sub3   IN TXT "v=DMARC2; p=reject; rua=mailto:dmarc@example.invalid"
+
+; DMARC record published at the wrong owner (DMARC-010).
+dmarcwrong    IN TXT "v=DMARC1; p=reject; rua=mailto:dmarc@example.invalid"
+
+; DKIM wrong v= (DKIM-001).
+sel1._domainkey IN TXT "v=DKIM2; k=rsa; p=aGVsbG93b3JsZA=="
+
+; DKIM unknown k= (DKIM-002).
+sel2._domainkey IN TXT "v=DKIM1; k=weirdalgo; p=aGVsbG93b3JsZA=="
+
+; DKIM revoked (empty p=) (DKIM-003).
+sel3._domainkey IN TXT "v=DKIM1; k=rsa; p="
+
+; DKIM testing mode plus obsolete g= (DKIM-005, DKIM-006).
+sel4._domainkey IN TXT "v=DKIM1; k=rsa; t=y; g=*; p=aGVsbG93b3JsZA=="
+
+; DKIM p= with invalid base64 characters (DKIM-007).
+sel5._domainkey IN TXT "v=DKIM1; k=rsa; p=not_base64_at_all!@#$"
+
+; DKIM record published off the _domainkey tree (DKIM-008).
+dkimwrong     IN TXT "v=DKIM1; k=rsa; p=aGVsbG93b3JsZA=="
