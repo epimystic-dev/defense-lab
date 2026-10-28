@@ -1,6 +1,6 @@
 """Rule registry for dnsrec.
 
-Twenty-seven posture rules on the email-authentication DNS record
+Twenty-eight posture rules on the email-authentication DNS record
 surface, each citing the public control it implements. Rule IDs use
 the ``SPF-``, ``DMARC-``, and ``DKIM-`` prefixes; the lab-wide shared
 surface exposes the combined list as ``ALL_RULES``.
@@ -824,6 +824,28 @@ def _check_dkim_008(records, options):
     return out
 
 
+def _check_dkim_009(records, options):
+    # RFC 6376 section 3.6.1 marks p= as REQUIRED. A record with p=
+    # entirely absent is malformed; receivers have no public key and
+    # cannot verify signatures from this selector. Distinct from
+    # DKIM-003 (empty p=, which is an explicit revocation signal) -
+    # the two cases are RFC-different and operator-different (a
+    # missing p= is usually a zone-editor dropped-field accident,
+    # whereas an empty p= is an intentional revocation).
+    out = []
+    for r in records:
+        if r.kind is not RecordKind.DKIM:
+            continue
+        tags = _tag_map(r.value)
+        if "p" not in tags:
+            out.append(_finding(
+                _RULES["DKIM-009"], r,
+                "DKIM record is missing the required p= tag",
+                hint="RFC 6376 section 3.6.1: p= is a REQUIRED tag. Without it the record has no public key, so receivers cannot verify any signature from this selector; the signed mail is treated as unsigned. If the key is intentionally retired, publish p= with an empty value (DKIM-003) to signal revocation rather than removing the tag.",
+            ))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -1022,6 +1044,13 @@ REGISTRY: List[Rule] = [
         "Receivers look up DKIM at <selector>._domainkey.<signing-domain>.",
         "RFC 6376 section 3.6.2.1",
         _check_dkim_008,
+    ),
+    _rule(
+        "DKIM-009", Severity.HIGH,
+        "DKIM record is missing the required p= tag",
+        "RFC 6376 section 3.6.1 marks p= as REQUIRED; a record without p= has no public key available and all signatures from the selector are treated as unsigned by receivers.",
+        "RFC 6376 section 3.6.1",
+        _check_dkim_009,
     ),
 ]
 

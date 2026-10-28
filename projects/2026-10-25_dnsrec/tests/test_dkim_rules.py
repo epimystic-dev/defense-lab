@@ -74,11 +74,58 @@ class DKIM003EmptyPTests(unittest.TestCase):
         self.assertIn("DKIM-003", _ids(text))
 
     def test_p_missing_clean(self):
+        # DKIM-003 is specifically the empty-p= (revocation) rule and
+        # does not fire when p= is absent entirely. The absent-p= case
+        # is covered by DKIM-009 (see DKIM009MissingPTests).
         text = (
             "$ORIGIN example.invalid.\n"
             "sel._domainkey  IN TXT \"v=DKIM1; k=rsa\"\n"
         )
         self.assertNotIn("DKIM-003", _ids(text))
+
+
+class DKIM009MissingPTests(unittest.TestCase):
+    def test_missing_p_fires(self):
+        # RFC 6376 section 3.6.1 marks p= as REQUIRED. A record whose
+        # p= tag is absent entirely has no public key available at the
+        # selector; receivers cannot verify any signature from the
+        # selector and treat the signed mail as unsigned. Prior to
+        # DKIM-009 this record passed with ZERO findings - a materially
+        # wrong clean verdict. The regression test fixture is the one
+        # that previously demonstrated the gap.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa\"\n"
+        )
+        self.assertIn("DKIM-009", _ids(text))
+
+    def test_p_present_clean(self):
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; p=aGVsbG8=\"\n"
+        )
+        self.assertNotIn("DKIM-009", _ids(text))
+
+    def test_empty_p_clean_for_dkim_009(self):
+        # An empty p= is explicit revocation (DKIM-003), not a missing
+        # tag; DKIM-009 must NOT fire on the revocation shape so the
+        # two rules stay disjoint.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; p=\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("DKIM-003", ids)
+        self.assertNotIn("DKIM-009", ids)
+
+    def test_fires_without_v_tag(self):
+        # v= is optional per RFC 6376 (defaults to DKIM1). A record
+        # with no v= and no p= is still missing the required key.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"k=rsa\"\n"
+        )
+        self.assertIn("DKIM-009", _ids(text))
 
 
 class DKIM004SmallKeyTests(unittest.TestCase):

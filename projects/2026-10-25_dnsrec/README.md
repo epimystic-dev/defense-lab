@@ -112,6 +112,7 @@ printed alongside each finding under `cite:`.
 | DKIM-006 | INFO | Obsolete `g=` granularity tag is present (removed in RFC 6376) | RFC 6376 section 3.6.1 |
 | DKIM-007 | HIGH | `p=` value is not valid base64 | RFC 6376 section 3.6.1; RFC 4648 |
 | DKIM-008 | HIGH | DKIM record is not published under `._domainkey.<domain>` | RFC 6376 section 3.6.2.1 |
+| DKIM-009 | HIGH | DKIM record is missing the required `p=` tag (no key published; different from `p=` empty, which is explicit revocation) | RFC 6376 section 3.6.1 |
 
 An internal rule `DNSREC-000` surfaces IO errors as a HIGH finding so
 every result shares one verdict rollup.
