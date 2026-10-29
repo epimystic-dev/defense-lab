@@ -1,0 +1,22 @@
+# healthy_compose.yml - synthetic docker-compose file with the posture
+# every composecheck rule accepts as clean. Running the linter on this
+# file should yield zero findings.
+
+version: "3.8"
+
+services:
+  web:
+    image: nginx:1.25.3-alpine
+    user: "1001:1001"
+    read_only: true
+    mem_limit: 128m
+    cpus: 0.5
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - PORT=8080
+      - LOG_LEVEL=info

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "composecheck"
+version = "0.1.0"
+description = "Static hardening linter for Dockerfile and docker-compose files - 20 posture rules against CIS Docker Benchmark, NIST SP 800-190, OWASP Docker Top 10, and CWE."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["docker", "dockerfile", "docker-compose", "linter", "hardening", "cis", "nist", "owasp", "containers"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Software Distribution",
+]
+
+[project.scripts]
+composecheck = "composecheck.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["composecheck*"]
+exclude = ["tests*", "examples*"]

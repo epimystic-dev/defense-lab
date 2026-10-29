@@ -1,0 +1,13 @@
+{
+  "name": "composecheck",
+  "slug": "2026-10-25_composecheck",
+  "kind": "linter",
+  "one_liner": "Static hardening linter for Dockerfile and docker-compose files - 20 posture rules against CIS Docker Benchmark, NIST SP 800-190, OWASP Docker Top 10, and CWE.",
+  "problem": "Container-image and container-service posture is the single most-common gap on developer-authored container deployments. The 2026 CIS Docker Benchmark and NIST SP 800-190 (Application Container Security Guide) continue to reaffirm that the posture lives in the Dockerfile and docker-compose files the developer has committed, not in the running container at inspection time. Default postures still ship with root-owned processes, :latest tag floats, apt-get install without cache cleanup, hard-coded secrets in ENV / environment, docker-socket bind mounts that confer host-level control to any process in the container, privileged: true, host-namespace sharing, and missing cap_drop: - ALL. composecheck reads a Dockerfile and / or a docker-compose.yml the developer has saved and flags 20 posture defects: ten image-build rules (DKF-prefix) and ten service-runtime rules (DC-prefix). Every rule cites the public control it implements (CIS Docker Benchmark section, NIST SP 800-190 section, OWASP Docker Top 10 id, CWE id). The tool reads saved files; it never pulls an image, builds a container, or connects to a Docker daemon.",
+  "language": "python",
+  "test_cmd": "python -m unittest discover -s tests",
+  "build_cmd": "python -m pip install -e .",
+  "deps": [],
+  "license": "MIT",
+  "clean_room": "Rules are derived from the public text of the Center for Internet Security Docker Benchmark (section 4 Image / Build and section 5 Runtime), NIST SP 800-190 (Application Container Security Guide, sections 3.4 and 4.4), the OWASP Docker Top 10 project page, MITRE CWE-250 (execution with unnecessary privileges), CWE-732 (incorrect permission assignment for critical resource), CWE-798 (use of hard-coded credentials), the Docker reference documentation for the Dockerfile instruction set and the docker-compose file version 3 and version 3.8 specifications, and the public docker-bench-security recommendations page. No reference implementation of any container-image or compose linter was read, vendored, or mirrored."
+}

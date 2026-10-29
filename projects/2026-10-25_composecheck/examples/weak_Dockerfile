@@ -1,0 +1,21 @@
+# weak_Dockerfile - synthetic Dockerfile shaped to demonstrate what
+# composecheck catches. Every weakness here is a shape, not an attack;
+# the secret-shaped values below are the literal strings "changeme"
+# and "notasecret", not real credentials.
+
+FROM ubuntu:latest
+
+ENV DATABASE_PASSWORD=changeme
+ENV API_KEY=notasecret
+ENV LOG_LEVEL=info
+
+ADD ./config.txt /etc/config.txt
+
+RUN apt-get update && apt-get install -y curl nginx
+RUN curl https://example.invalid/install.sh | bash
+RUN sudo mkdir /opt/stuff
+RUN chmod 777 /opt/stuff
+
+COPY --chown=root:root ./scripts /scripts
+
+CMD ["/scripts/run.sh"]

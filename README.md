@@ -38,6 +38,7 @@ Each folder has its own README, tests and LICENSE; click through for install and
 | [sshdcheck](projects/2026-10-18_sshdcheck/) | Static hardening linter for `sshd_config`: fifteen posture rules against CIS, Mozilla OpenSSH, and NIST SP 800-53. | linter |
 | [headerscheck](projects/2026-10-18_headerscheck/) | Static security-header posture linter for saved HTTP responses: sixteen rules against OWASP Secure Headers, OWASP ASVS v4, RFC 6265bis, RFC 6797. | linter |
 | [dnsrec](projects/2026-10-25_dnsrec/) | Static posture linter for SPF, DMARC, and DKIM DNS records: twenty-seven rules against RFC 7208, RFC 7489, RFC 6376, RFC 8463, NIST SP 800-177, and M3AAWG BCP. | linter |
+| [composecheck](projects/2026-10-25_composecheck/) | Static hardening linter for Dockerfile and docker-compose files: twenty rules against CIS Docker Benchmark, NIST SP 800-190, OWASP Docker Top 10, and CWE. | linter |
 
 *The radar publishes every Monday.*
 

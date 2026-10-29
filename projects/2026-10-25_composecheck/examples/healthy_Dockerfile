@@ -1,0 +1,19 @@
+# healthy_Dockerfile - synthetic Dockerfile with the posture every
+# composecheck rule accepts as clean. Running the linter on this file
+# should yield zero findings.
+
+FROM alpine:3.19.1
+
+RUN apk add --no-cache dumb-init
+
+RUN addgroup -S app && adduser -S app -G app
+
+COPY --chown=app:app ./app /app
+WORKDIR /app
+
+USER app
+
+HEALTHCHECK --interval=30s --timeout=10s CMD ["/app/healthcheck.sh"]
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["/app/run.sh"]
