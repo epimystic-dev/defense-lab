@@ -45,6 +45,30 @@ class DKF002TagTests(unittest.TestCase):
     def test_scratch_clean(self):
         self.assertNotIn("DKF-002", _ids("FROM scratch\n"))
 
+    def test_registry_port_no_tag_fires(self):
+        # Regression: 'host:port/image' with no tag was silently
+        # passed because the host-port ':' was misread as a tag
+        # separator, so 'tag' was '5000/myapp' and never 'latest'.
+        self.assertIn(
+            "DKF-002",
+            _ids("FROM registry.example.com:5000/myapp\n"),
+        )
+
+    def test_localhost_port_no_tag_fires(self):
+        self.assertIn("DKF-002", _ids("FROM localhost:5000/foo\n"))
+
+    def test_registry_port_pinned_tag_clean(self):
+        self.assertNotIn(
+            "DKF-002",
+            _ids("FROM registry.example.com:5000/myapp:1.0\n"),
+        )
+
+    def test_registry_port_latest_tag_fires(self):
+        self.assertIn(
+            "DKF-002",
+            _ids("FROM registry.example.com:5000/myapp:latest\n"),
+        )
+
 
 class DKF003AddTests(unittest.TestCase):
     def test_add_local_file_fires(self):

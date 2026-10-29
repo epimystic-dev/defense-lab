@@ -162,7 +162,15 @@ def _check_dkf_002(instructions, compose, options):
         # Digest-pinned (image@sha256:...) is strong, so skip.
         if "@sha256:" in head:
             continue
-        if ":" not in head:
+        # Per the OCI reference-spec grammar
+        # ([registry[:port]/]namespace/name[:tag][@digest]), a tag is
+        # present only when a ':' appears in the final '/'-separated
+        # segment. Looking at the whole string misreads a 'host:port'
+        # prefix as a tag, which previously caused references like
+        # 'registry.example.com:5000/myapp' to pass silently.
+        last_slash = head.rfind("/")
+        after_slash = head[last_slash + 1:] if last_slash != -1 else head
+        if ":" not in after_slash:
             out.append(_finding(
                 _RULES["DKF-002"], "FROM", ins.line,
                 "FROM " + head
@@ -170,7 +178,7 @@ def _check_dkf_002(instructions, compose, options):
                 hint="CIS Docker Benchmark 4.2: pin to a specific tag or a digest so builds are reproducible.",
             ))
             continue
-        tag = head.rsplit(":", 1)[1]
+        tag = after_slash.rsplit(":", 1)[1]
         if tag.lower() == "latest":
             out.append(_finding(
                 _RULES["DKF-002"], "FROM", ins.line,
