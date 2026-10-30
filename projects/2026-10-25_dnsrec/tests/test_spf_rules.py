@@ -177,5 +177,74 @@ class SPF009WildcardTests(unittest.TestCase):
         self.assertNotIn("SPF-009", _ids(text))
 
 
+class SPF010VersionDelimiterTests(unittest.TestCase):
+    # RFC 7208 Appendix A ABNF: record = version terms *SP, with
+    # terms = *( 1*SP ( directive / modifier ) ). The version section
+    # must be either the entire body or followed by whitespace before
+    # the first term; v=spf1-all and v=spf1include:... are discarded
+    # by receivers and today pass dnsrec clean or with a misleading
+    # SPF-005 "no all mechanism" finding.
+
+    def test_v_spf1_dash_all_fires(self):
+        # The dropped-space-before--all case. Today the operator sees
+        # SPF-005 and imagines they need to add -all even though they
+        # already wrote it; SPF-010 names the real defect.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "@  IN TXT \"v=spf1-all\"\n"
+        )
+        self.assertIn("SPF-010", _ids(text))
+
+    def test_v_spf1_include_no_space_fires(self):
+        # The silently-clean case before this rule: with -all present
+        # SPF-005 does not fire, so the operator sees ZERO findings
+        # against a record every receiver will discard. Pin the exact
+        # pre-fix behaviour here so a regression is impossible.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "@  IN TXT \"v=spf1include:_spf.example.net -all\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("SPF-010", ids)
+
+    def test_tab_after_v_spf1_clean(self):
+        # HTAB (0x09) is explicit in the ABNF LWSP definition and
+        # does appear in zone-file exports; it must not trigger
+        # SPF-010.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "@  IN TXT \"v=spf1\t-all\"\n"
+        )
+        self.assertNotIn("SPF-010", _ids(text))
+
+    def test_v_spf1_alone_clean(self):
+        # The ABNF permits an empty terms list; v=spf1 is a valid
+        # (if neutral) record. Pin that this does not false-fire.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "@  IN TXT \"v=spf1\"\n"
+        )
+        self.assertNotIn("SPF-010", _ids(text))
+
+    def test_proper_space_clean(self):
+        # Baseline well-formed record must not fire.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "@  IN TXT \"v=spf1 -all\"\n"
+        )
+        self.assertNotIn("SPF-010", _ids(text))
+
+    def test_wrong_version_defers_to_spf_008(self):
+        # SPF-008 handles the wrong-version case; SPF-010 must not
+        # also fire on v=spf2-foo (that would be double-reporting).
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "@  IN TXT \"v=spf2-all\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("SPF-008", ids)
+        self.assertNotIn("SPF-010", ids)
+
+
 if __name__ == "__main__":
     unittest.main()

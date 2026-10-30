@@ -1,6 +1,6 @@
 """Rule registry for dnsrec.
 
-Twenty-eight posture rules on the email-authentication DNS record
+Twenty-nine posture rules on the email-authentication DNS record
 surface, each citing the public control it implements. Rule IDs use
 the ``SPF-``, ``DMARC-``, and ``DKIM-`` prefixes; the lab-wide shared
 surface exposes the combined list as ``ALL_RULES``.
@@ -446,6 +446,48 @@ def _check_spf_009(records, options):
                     hint="Authorising every address of the Internet negates the point of SPF; NIST SP 800-177 section 4.6.1 names explicit allowlists as the required practice.",
                 ))
                 break
+    return out
+
+
+def _check_spf_010(records, options):
+    # RFC 7208 Appendix A ABNF:
+    #     record  = version terms *SP
+    #     version = "v=spf1"
+    #     terms   = *( 1*SP ( directive / modifier ) )
+    # The version section MUST be either the entire record body or be
+    # followed by at least one SP (0x20) or HTAB (0x09) before any
+    # further term. A record body such as ``v=spf1-all`` or
+    # ``v=spf1include:_spf.example.com -all`` is malformed: receivers
+    # discard it per section 4.5 because the version does not
+    # terminate at the expected boundary. Today an operator who drops
+    # the space before ``-all`` sees SPF-005 ("no all mechanism") and
+    # imagines they need to add ``-all`` - the ``-all`` they wrote has
+    # been swallowed into the version run of characters. Worse, a
+    # dropped space before an ``include`` mechanism silences every
+    # SPF rule and the record passes clean.
+    out = []
+    for r in records:
+        if r.kind is not RecordKind.SPF:
+            continue
+        v = r.value
+        if not v.lower().startswith("v=spf1"):
+            # SPF-008 handles the wrong-version case.
+            continue
+        if len(v) == 6:
+            # ``v=spf1`` alone (empty terms list) is valid per the
+            # ABNF: ``*SP`` after ``terms`` permits zero trailing
+            # whitespace.
+            continue
+        if v[6] in (" ", "\t"):
+            continue
+        trailer = v[6:]
+        trailer_preview = trailer if len(trailer) <= 32 else trailer[:29] + "..."
+        out.append(_finding(
+            _RULES["SPF-010"], r,
+            "SPF version section v=spf1 is not followed by whitespace"
+            + " (saw: v=spf1" + trailer_preview + ")",
+            hint="RFC 7208 Appendix A ABNF requires v=spf1 to be either the whole record body or to be followed by whitespace before any mechanism or modifier. Receivers discard the record when the version section does not terminate, so no SPF policy is applied at all; insert a space between v=spf1 and the first term.",
+        ))
     return out
 
 
@@ -918,6 +960,13 @@ REGISTRY: List[Rule] = [
         "Authorising 0.0.0.0/0 or ::/0 negates the point of SPF.",
         "NIST SP 800-177 section 4.6.1",
         _check_spf_009,
+    ),
+    _rule(
+        "SPF-010", Severity.HIGH,
+        "SPF version section is not followed by whitespace",
+        "RFC 7208 Appendix A requires v=spf1 to be either the whole record or followed by whitespace; a record like v=spf1-all or v=spf1include:... is discarded by receivers.",
+        "RFC 7208 section 4.5; RFC 7208 Appendix A",
+        _check_spf_010,
     ),
     _rule(
         "DMARC-001", Severity.HIGH,

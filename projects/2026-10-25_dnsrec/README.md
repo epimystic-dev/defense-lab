@@ -84,6 +84,7 @@ printed alongside each finding under `cite:`.
 | SPF-007 | INFO | SPF logical body exceeds a single 255-byte TXT quoted string | RFC 1035 section 3.3.14 |
 | SPF-008 | HIGH | SPF-shaped record does not begin with `v=spf1` | RFC 7208 section 4.5 |
 | SPF-009 | MEDIUM | SPF contains an any-source wildcard (`+ip4:0.0.0.0/0` or `+ip6:::/0`) | NIST SP 800-177 section 4.6.1 |
+| SPF-010 | HIGH | SPF version section `v=spf1` is not followed by whitespace (e.g. `v=spf1-all`, `v=spf1include:...`); receivers discard the record | RFC 7208 section 4.5; Appendix A |
 
 ### DMARC (RFC 7489)
 
