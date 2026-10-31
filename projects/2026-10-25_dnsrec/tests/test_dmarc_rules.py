@@ -201,5 +201,88 @@ class DMARC010WrongOwnerTests(unittest.TestCase):
         self.assertNotIn("DMARC-010", _ids(text))
 
 
+class DMARC011InvalidPolicyValueTests(unittest.TestCase):
+    # RFC 7489 section 6.3 fixes p= to one of none, quarantine, reject;
+    # section 6.6.3 states a receiver that cannot parse p= MUST NOT
+    # apply the DMARC mechanism. Pre-DMARC-011, a typo on p= passed
+    # entirely clean, so the operator believed a reject policy was in
+    # force when every receiver was actually skipping DMARC.
+
+    def test_p_rejects_typo_fires(self):
+        # The exact pre-fix reproducer: `rejects` is a very plausible
+        # typo for `reject`.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=rejects; rua=mailto:a@example.invalid; adkim=s; aspf=s\"\n"
+        )
+        self.assertIn("DMARC-011", _ids(text))
+
+    def test_p_arbitrary_value_fires(self):
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=banana; rua=mailto:a@example.invalid; adkim=s; aspf=s\"\n"
+        )
+        self.assertIn("DMARC-011", _ids(text))
+
+    def test_p_reject_uppercase_clean(self):
+        # Section 6.6.3 requires case-insensitive parsing of tag values.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=REJECT; rua=mailto:a@example.invalid; adkim=s; aspf=s\"\n"
+        )
+        self.assertNotIn("DMARC-011", _ids(text))
+
+    def test_p_reject_clean(self):
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject; rua=mailto:a@example.invalid; adkim=s; aspf=s\"\n"
+        )
+        self.assertNotIn("DMARC-011", _ids(text))
+
+    def test_p_none_disjoint_from_dmarc_011(self):
+        # p=none is a valid-but-weak policy. DMARC-001 owns that case;
+        # DMARC-011 must not double-report it.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=none; rua=mailto:a@example.invalid; adkim=s; aspf=s\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("DMARC-001", ids)
+        self.assertNotIn("DMARC-011", ids)
+
+    def test_p_quarantine_disjoint_from_dmarc_011(self):
+        # p=quarantine is DMARC-002's territory.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=quarantine; rua=mailto:a@example.invalid; adkim=s; aspf=s\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("DMARC-002", ids)
+        self.assertNotIn("DMARC-011", ids)
+
+    def test_missing_p_disjoint_from_dmarc_011(self):
+        # DMARC-003 handles the missing-p= case; DMARC-011 only fires
+        # when a value is present but invalid.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; rua=mailto:a@example.invalid; adkim=s; aspf=s\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("DMARC-003", ids)
+        self.assertNotIn("DMARC-011", ids)
+
+    def test_wrong_version_disjoint_from_dmarc_011(self):
+        # DMARC-004 handles the wrong-version case; DMARC-011 is gated
+        # off until the version section is intact so a single defect is
+        # reported once.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC2; p=banana; rua=mailto:a@example.invalid; adkim=s; aspf=s\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("DMARC-004", ids)
+        self.assertNotIn("DMARC-011", ids)
+
+
 if __name__ == "__main__":
     unittest.main()

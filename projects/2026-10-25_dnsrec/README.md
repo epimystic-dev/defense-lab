@@ -100,6 +100,7 @@ printed alongside each finding under `cite:`.
 | DMARC-008 | HIGH | DMARC record has no `rua=` aggregate reporting URI | M3AAWG BCP; NIST SP 800-177 section 4.6.2 |
 | DMARC-009 | HIGH | `sp=` is weaker than `p=` (sub-domain policy loosens the parent) | RFC 7489 section 6.3 |
 | DMARC-010 | HIGH | DMARC record is not published at `_dmarc.<domain>` | RFC 7489 section 6.1 |
+| DMARC-011 | HIGH | `p=` value is not one of `none`, `quarantine`, `reject` (receivers skip DMARC per section 6.6.3) | RFC 7489 section 6.3; section 6.6.3 |
 
 ### DKIM (RFC 6376, RFC 8463)
 

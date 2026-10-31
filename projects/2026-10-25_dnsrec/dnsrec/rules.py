@@ -1,6 +1,6 @@
 """Rule registry for dnsrec.
 
-Twenty-nine posture rules on the email-authentication DNS record
+Thirty posture rules on the email-authentication DNS record
 surface, each citing the public control it implements. Rule IDs use
 the ``SPF-``, ``DMARC-``, and ``DKIM-`` prefixes; the lab-wide shared
 surface exposes the combined list as ``ALL_RULES``.
@@ -695,6 +695,39 @@ def _check_dmarc_010(records, options):
     return out
 
 
+def _check_dmarc_011(records, options):
+    # RFC 7489 section 6.3 defines p= as taking exactly one of three
+    # values: none, quarantine, reject. Section 6.6.3 is explicit that
+    # a receiver which cannot parse a required tag MUST NOT apply the
+    # DMARC mechanism to the message, so a typo like ``p=rejects`` or
+    # ``p=banana`` causes receivers to skip DMARC entirely. The operator
+    # believes they published a reject policy; in practice they have no
+    # DMARC posture at all. Parallels DMARC-005 (invalid pct= value) in
+    # flagging a shape defect that silently defaults to the unenforced
+    # state. Disjoint from DMARC-001 and DMARC-002 by construction (both
+    # fire only on valid policy values); gated by the v=DMARC1 version
+    # check so DMARC-004 handles the wrong-version case alone; gated by
+    # presence of p= so DMARC-003 handles the missing-p= case alone.
+    out = []
+    for r in records:
+        if r.kind is not RecordKind.DMARC:
+            continue
+        if not r.value.lower().startswith("v=dmarc1"):
+            continue
+        tags = _tag_map(r.value)
+        p = tags.get("p")
+        if p is None:
+            continue
+        if p.strip().lower() not in _DMARC_POLICY_VALUES:
+            out.append(_finding(
+                _RULES["DMARC-011"], r,
+                "DMARC p=" + p
+                + " is not a valid policy value (expected none, quarantine, or reject)",
+                hint="RFC 7489 section 6.3 defines p= as taking exactly one of none, quarantine, or reject. Per section 6.6.3, a receiver that cannot parse the p= tag MUST NOT apply the DMARC mechanism; the record is skipped entirely, so the intended policy has no effect at any receiver.",
+            ))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # DKIM rules
 # ---------------------------------------------------------------------------
@@ -1037,6 +1070,13 @@ REGISTRY: List[Rule] = [
         "Receivers look up DMARC at _dmarc.<org-domain>.",
         "RFC 7489 section 6.1",
         _check_dmarc_010,
+    ),
+    _rule(
+        "DMARC-011", Severity.HIGH,
+        "DMARC p= value is not none|quarantine|reject",
+        "An unrecognised p= value causes receivers to skip DMARC entirely per RFC 7489 section 6.6.3; the intended policy has no effect.",
+        "RFC 7489 section 6.3; RFC 7489 section 6.6.3",
+        _check_dmarc_011,
     ),
     _rule(
         "DKIM-001", Severity.HIGH,
