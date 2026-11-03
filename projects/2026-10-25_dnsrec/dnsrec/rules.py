@@ -1,6 +1,6 @@
 """Rule registry for dnsrec.
 
-Thirty posture rules on the email-authentication DNS record
+Thirty-one posture rules on the email-authentication DNS record
 surface, each citing the public control it implements. Rule IDs use
 the ``SPF-``, ``DMARC-``, and ``DKIM-`` prefixes; the lab-wide shared
 surface exposes the combined list as ``ALL_RULES``.
@@ -496,6 +496,7 @@ def _check_spf_010(records, options):
 # ---------------------------------------------------------------------------
 
 _DMARC_POLICY_VALUES = {"none", "quarantine", "reject"}
+_DMARC_ALIGNMENT_VALUES = {"r", "s"}
 
 
 def _check_dmarc_001(records, options):
@@ -724,6 +725,51 @@ def _check_dmarc_011(records, options):
                 "DMARC p=" + p
                 + " is not a valid policy value (expected none, quarantine, or reject)",
                 hint="RFC 7489 section 6.3 defines p= as taking exactly one of none, quarantine, or reject. Per section 6.6.3, a receiver that cannot parse the p= tag MUST NOT apply the DMARC mechanism; the record is skipped entirely, so the intended policy has no effect at any receiver.",
+            ))
+    return out
+
+
+def _check_dmarc_012(records, options):
+    # RFC 7489 section 6.3 defines adkim and aspf as taking exactly one
+    # of two values: r (relaxed) or s (strict). Section 6.6.3 states a
+    # receiver that cannot parse a tag MUST ignore it; the default for
+    # both tags is r, so a typo like adkim=strict or aspf=banana is
+    # silently treated as relaxed at every receiver. The operator wrote
+    # a non-default value expecting strict alignment and in fact got the
+    # relaxed default. DMARC-006 and DMARC-007 only flag literal r, so
+    # the invalid-value case went entirely unreported before this rule.
+    # Parallels DMARC-011 (invalid p= value) and DMARC-005 (malformed
+    # pct= value) in flagging a shape defect that silently defaults to
+    # a weaker posture. Disjoint from DMARC-006 and DMARC-007 by
+    # construction (both fire only on the valid value r); gated by the
+    # v=DMARC1 version check so DMARC-004 handles the wrong-version
+    # case alone.
+    out = []
+    for r in records:
+        if r.kind is not RecordKind.DMARC:
+            continue
+        if not r.value.lower().startswith("v=dmarc1"):
+            continue
+        tags = _tag_map(r.value)
+        for tag_name in ("adkim", "aspf"):
+            raw = tags.get(tag_name)
+            if raw is None:
+                continue
+            if raw.strip().lower() in _DMARC_ALIGNMENT_VALUES:
+                continue
+            out.append(_finding(
+                _RULES["DMARC-012"], r,
+                "DMARC " + tag_name + "=" + raw
+                + " is not a valid alignment value (expected r or s;"
+                + " receivers ignore the tag and fall back to the"
+                + " relaxed default)",
+                hint="RFC 7489 section 6.3 defines " + tag_name
+                + " as taking exactly one of r (relaxed) or s (strict)."
+                + " Per section 6.6.3, a receiver that cannot parse a"
+                + " tag MUST ignore it; the default for both adkim and"
+                + " aspf is r, so an invalid value silently applies"
+                + " relaxed alignment at every receiver even when the"
+                + " operator intended strict.",
             ))
     return out
 
@@ -1077,6 +1123,13 @@ REGISTRY: List[Rule] = [
         "An unrecognised p= value causes receivers to skip DMARC entirely per RFC 7489 section 6.6.3; the intended policy has no effect.",
         "RFC 7489 section 6.3; RFC 7489 section 6.6.3",
         _check_dmarc_011,
+    ),
+    _rule(
+        "DMARC-012", Severity.HIGH,
+        "DMARC adkim= or aspf= value is not r or s",
+        "An unrecognised adkim / aspf value is ignored by receivers per RFC 7489 section 6.6.3; the tag defaults to r, so the operator writes strict and silently gets relaxed.",
+        "RFC 7489 section 6.3; RFC 7489 section 6.6.3",
+        _check_dmarc_012,
     ),
     _rule(
         "DKIM-001", Severity.HIGH,

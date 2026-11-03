@@ -1,4 +1,4 @@
-"""DMARC rule tests (DMARC-001..DMARC-010)."""
+"""DMARC rule tests (DMARC-001..DMARC-012)."""
 
 from __future__ import annotations
 
@@ -282,6 +282,110 @@ class DMARC011InvalidPolicyValueTests(unittest.TestCase):
         ids = _ids(text)
         self.assertIn("DMARC-004", ids)
         self.assertNotIn("DMARC-011", ids)
+
+
+class DMARC012InvalidAlignmentValueTests(unittest.TestCase):
+    # RFC 7489 section 6.3 fixes adkim and aspf to one of r or s;
+    # section 6.6.3 states a receiver that cannot parse the tag MUST
+    # ignore it, and the default for both is r. Pre-DMARC-012, a typo
+    # on either tag passed without a dedicated finding, so the operator
+    # believed strict alignment was in force while every receiver
+    # applied relaxed.
+
+    def test_adkim_strict_word_fires(self):
+        # The exact pre-fix reproducer: 'strict' is a very plausible
+        # long-form typo for the single-letter 's'.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject; adkim=strict; aspf=s;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        self.assertIn("DMARC-012", _ids(text))
+
+    def test_aspf_arbitrary_value_fires(self):
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject; adkim=s; aspf=banana;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        self.assertIn("DMARC-012", _ids(text))
+
+    def test_both_tags_invalid_fire_twice(self):
+        # One finding per invalid tag so the operator sees exactly
+        # which tag needs fixing.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject; adkim=strict; aspf=lax;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        ids = _ids(text)
+        self.assertEqual(2, sum(1 for i in ids if i == "DMARC-012"))
+
+    def test_adkim_s_uppercase_clean(self):
+        # Section 6.6.3 requires case-insensitive parsing of tag values.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject; adkim=S; aspf=S;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        self.assertNotIn("DMARC-012", _ids(text))
+
+    def test_adkim_s_clean(self):
+        # Baseline: both tags set to the strict value should not fire.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject; adkim=s; aspf=s;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        self.assertNotIn("DMARC-012", _ids(text))
+
+    def test_adkim_r_disjoint_from_dmarc_012(self):
+        # DMARC-006 owns the explicit-relaxed-adkim case; DMARC-012
+        # must not double-report it.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject; adkim=r; aspf=s;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("DMARC-006", ids)
+        self.assertNotIn("DMARC-012", ids)
+
+    def test_aspf_r_disjoint_from_dmarc_012(self):
+        # DMARC-007 owns the explicit-relaxed-aspf case.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject; adkim=s; aspf=r;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("DMARC-007", ids)
+        self.assertNotIn("DMARC-012", ids)
+
+    def test_missing_tags_disjoint_from_dmarc_012(self):
+        # Absent adkim and aspf default to r at the receiver; DMARC-006
+        # and DMARC-007 fire. DMARC-012 only fires when a value is
+        # present but invalid.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC1; p=reject;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        ids = _ids(text)
+        self.assertNotIn("DMARC-012", ids)
+
+    def test_wrong_version_disjoint_from_dmarc_012(self):
+        # DMARC-004 handles the wrong-version case; DMARC-012 is gated
+        # off until the version section is intact so a single defect is
+        # reported once.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "_dmarc  IN TXT \"v=DMARC2; p=reject; adkim=strict; aspf=s;"
+            " rua=mailto:a@example.invalid\"\n"
+        )
+        ids = _ids(text)
+        self.assertIn("DMARC-004", ids)
+        self.assertNotIn("DMARC-012", ids)
 
 
 if __name__ == "__main__":
