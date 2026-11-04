@@ -1,4 +1,4 @@
-"""DKIM rule tests (DKIM-001..DKIM-008)."""
+"""DKIM rule tests (DKIM-001..DKIM-010)."""
 
 from __future__ import annotations
 
@@ -217,6 +217,84 @@ class DKIM008WrongOwnerTests(unittest.TestCase):
             "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; p=aGVsbG8=\"\n"
         )
         self.assertNotIn("DKIM-008", _ids(text))
+
+
+class DKIM010SHA1OnlyHTagTests(unittest.TestCase):
+    def test_h_sha1_only_fires(self):
+        # Pre-fix reproducer: a DKIM record whose h= tag lists only the
+        # deprecated SHA-1 algorithm passed with ZERO findings. Per
+        # RFC 8301 section 2.1 modern signers MUST NOT sign with SHA-1
+        # and verifiers treat SHA-1 signatures as unsigned, while per
+        # RFC 6376 section 3.6.1 verifiers reject any signature whose
+        # hash is not listed in h=. The selector therefore accepts
+        # no valid signature from any sender, but the operator
+        # believes DKIM is in force.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; h=sha1; p=aGVsbG8=\"\n"
+        )
+        self.assertIn("DKIM-010", _ids(text))
+
+    def test_h_uppercase_sha1_fires(self):
+        # Case-insensitivity pin: per RFC 6376 the tag values are
+        # ASCII tokens and comparisons are case-insensitive. An
+        # operator who writes h=SHA1 must not slip past the rule
+        # just because of casing.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; h=SHA1; p=aGVsbG8=\"\n"
+        )
+        self.assertIn("DKIM-010", _ids(text))
+
+    def test_h_sha1_with_whitespace_fires(self):
+        # Whitespace-tolerance pin: _parse_tag_pairs strips the outer
+        # tag=value whitespace and the rule strips each colon segment,
+        # so " sha1 " must still read as a sha1-only list.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; h= sha1 ; p=aGVsbG8=\"\n"
+        )
+        self.assertIn("DKIM-010", _ids(text))
+
+    def test_h_sha256_clean(self):
+        # Baseline: a modern h=sha256 key must stay DKIM-010-clean.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; h=sha256; p=aGVsbG8=\"\n"
+        )
+        self.assertNotIn("DKIM-010", _ids(text))
+
+    def test_h_sha1_and_sha256_clean(self):
+        # Disjointness pin: when h= also lists sha256, a compliant
+        # modern signer can still produce a signature that verifies.
+        # The shape is messy but not a posture failure; DKIM-010 must
+        # NOT fire.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; h=sha1:sha256; p=aGVsbG8=\"\n"
+        )
+        self.assertNotIn("DKIM-010", _ids(text))
+
+    def test_h_sha256_and_sha1_clean(self):
+        # Order-independence pin: the set is unordered, so
+        # h=sha256:sha1 must behave the same as h=sha1:sha256.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; h=sha256:sha1; p=aGVsbG8=\"\n"
+        )
+        self.assertNotIn("DKIM-010", _ids(text))
+
+    def test_h_absent_clean(self):
+        # Default-case pin: h= is OPTIONAL and defaults to allowing all
+        # algorithms, so an absent h= is not a posture failure even
+        # though a legacy sha1 signature would technically match the
+        # default list. DKIM-010 only fires on the explicit sha1-only
+        # restriction.
+        text = (
+            "$ORIGIN example.invalid.\n"
+            "sel._domainkey  IN TXT \"v=DKIM1; k=rsa; p=aGVsbG8=\"\n"
+        )
+        self.assertNotIn("DKIM-010", _ids(text))
 
 
 if __name__ == "__main__":

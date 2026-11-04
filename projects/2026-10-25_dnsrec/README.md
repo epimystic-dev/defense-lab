@@ -4,9 +4,9 @@ Static posture linter for SPF, DMARC, and DKIM DNS records. Reads a
 BIND-style zone file (or a one-record-per-line TXT export) the operator
 has saved and reports posture defects against public email-
 authentication guidance - IETF RFC 7208 (SPF), RFC 7489 (DMARC),
-RFC 6376 (DKIM), RFC 8463 (DKIM Ed25519), NIST SP 800-177 Revision 1,
-and the M3AAWG Email Authentication Best Common Practices. Zero
-dependencies, Python 3.9+.
+RFC 6376 (DKIM), RFC 8463 (DKIM Ed25519), RFC 8301 (DKIM SHA-1
+deprecation), NIST SP 800-177 Revision 1, and the M3AAWG Email
+Authentication Best Common Practices. Zero dependencies, Python 3.9+.
 
 Part of [defense-lab](https://github.com/epimystic-dev/defense-lab).
 
@@ -103,7 +103,7 @@ printed alongside each finding under `cite:`.
 | DMARC-011 | HIGH | `p=` value is not one of `none`, `quarantine`, `reject` (receivers skip DMARC per section 6.6.3) | RFC 7489 section 6.3; section 6.6.3 |
 | DMARC-012 | HIGH | `adkim=` or `aspf=` value is not `r` or `s` (receivers ignore the tag and fall back to the relaxed default) | RFC 7489 section 6.3; section 6.6.3 |
 
-### DKIM (RFC 6376, RFC 8463)
+### DKIM (RFC 6376, RFC 8463, RFC 8301)
 
 | ID | Severity | What it catches | Citation |
 |---|---|---|---|
@@ -116,6 +116,7 @@ printed alongside each finding under `cite:`.
 | DKIM-007 | HIGH | `p=` value is not valid base64 | RFC 6376 section 3.6.1; RFC 4648 |
 | DKIM-008 | HIGH | DKIM record is not published under `._domainkey.<domain>` | RFC 6376 section 3.6.2.1 |
 | DKIM-009 | HIGH | DKIM record is missing the required `p=` tag (no key published; different from `p=` empty, which is explicit revocation) | RFC 6376 section 3.6.1 |
+| DKIM-010 | HIGH | `h=` tag lists only deprecated `sha1` (receivers reject every signature per RFC 8301 and mail is treated as unsigned) | RFC 8301 section 2.1; RFC 6376 section 3.6.1 |
 
 An internal rule `DNSREC-000` surfaces IO errors as a HIGH finding so
 every result shares one verdict rollup.

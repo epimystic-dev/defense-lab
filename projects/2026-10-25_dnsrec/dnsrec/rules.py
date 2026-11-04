@@ -1,6 +1,6 @@
 """Rule registry for dnsrec.
 
-Thirty-one posture rules on the email-authentication DNS record
+Thirty-two posture rules on the email-authentication DNS record
 surface, each citing the public control it implements. Rule IDs use
 the ``SPF-``, ``DMARC-``, and ``DKIM-`` prefixes; the lab-wide shared
 surface exposes the combined list as ``ALL_RULES``.
@@ -12,6 +12,8 @@ Rules are grounded in these public sources:
   * IETF RFC 6376 - DomainKeys Identified Mail Signatures.
   * IETF RFC 8463 - A New Cryptographic Signature Method for DKIM
     (Ed25519-SHA256).
+  * IETF RFC 8301 - Cryptographic Algorithm and Key Usage Update to
+    DKIM (deprecation of SHA-1).
   * IETF RFC 1035 - DNS implementation specifics (TXT record quoted-
     string length).
   * NIST SP 800-177 Revision 1 - Trustworthy Email.
@@ -945,6 +947,48 @@ def _check_dkim_008(records, options):
     return out
 
 
+def _check_dkim_010(records, options):
+    # RFC 8301 section 2.1 deprecates SHA-1 in DKIM: signers MUST NOT
+    # sign with SHA-1, and verifiers treat signatures made with SHA-1
+    # as if the message were unsigned. The h= tag at the key record
+    # (RFC 6376 section 3.6.1) lists the hash algorithms the operator
+    # will accept; if specified, verifiers MUST confirm the signature
+    # hash appears in h= or reject the signature. A key record that
+    # publishes h=sha1 therefore accepts no valid signature from any
+    # modern signer (which uses sha256 per RFC 8301) and no valid
+    # signature from a legacy sha1 signer (rejected by the verifier
+    # per RFC 8301), so every message from the selector is treated as
+    # unsigned while the operator believes DKIM is in force. Parallels
+    # SPF-010 / DMARC-011 / DMARC-012 in flagging a shape defect that
+    # silently converts an intended enforcing posture into no DKIM at
+    # all. Fires when h= is present and every listed algorithm is
+    # sha1 (case-insensitive); skipped when h= is absent (default
+    # "allow all" lets modern senders use sha256) or when any listed
+    # algorithm is not sha1, since in those cases a compliant modern
+    # sha256 signature can still verify.
+    out = []
+    for r in records:
+        if r.kind is not RecordKind.DKIM:
+            continue
+        tags = _tag_map(r.value)
+        h = tags.get("h")
+        if h is None:
+            continue
+        algos = {s.strip().lower() for s in h.split(":") if s.strip()}
+        if not algos:
+            continue
+        if algos == {"sha1"}:
+            out.append(_finding(
+                _RULES["DKIM-010"], r,
+                "DKIM record h=" + h
+                + " lists only deprecated SHA-1 (RFC 8301; receivers"
+                + " reject every signature and the mail is treated as"
+                + " unsigned)",
+                hint="RFC 8301 section 2.1 deprecates SHA-1 in DKIM: signers MUST NOT sign with SHA-1, and verifiers treat SHA-1 signatures as if the message were unsigned. Per RFC 6376 section 3.6.1, verifiers that see h= MUST confirm the signature hash appears in it, so h=sha1 excludes every compliant modern signer (which uses sha256) while every legacy sha1 signature is separately rejected - the selector accepts no signature at all. Publish h=sha256, or omit h= entirely to default to allowing all algorithms.",
+            ))
+    return out
+
+
 def _check_dkim_009(records, options):
     # RFC 6376 section 3.6.1 marks p= as REQUIRED. A record with p=
     # entirely absent is malformed; receivers have no public key and
@@ -1193,6 +1237,13 @@ REGISTRY: List[Rule] = [
         "RFC 6376 section 3.6.1 marks p= as REQUIRED; a record without p= has no public key available and all signatures from the selector are treated as unsigned by receivers.",
         "RFC 6376 section 3.6.1",
         _check_dkim_009,
+    ),
+    _rule(
+        "DKIM-010", Severity.HIGH,
+        "DKIM h= tag lists only deprecated SHA-1",
+        "RFC 8301 deprecates SHA-1 in DKIM; a key restricted to h=sha1 accepts no valid signature (modern signers use sha256 which is not in the list, legacy sha1 signatures are rejected) and every message is treated as unsigned.",
+        "RFC 8301 section 2.1; RFC 6376 section 3.6.1",
+        _check_dkim_010,
     ),
 ]
 
