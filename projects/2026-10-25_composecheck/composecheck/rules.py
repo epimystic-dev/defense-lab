@@ -630,12 +630,20 @@ def _check_dc_008(instructions, compose, options):
             ))
             continue
         v = s.value.strip().strip('"').strip("'")
-        if v in ("0", "root", "0:0"):
+        # Compose user: syntax is "user[:group]" (Docker Compose
+        # reference, services.user). The user portion determines the
+        # effective UID; the group portion does not change root-ness.
+        # Previously this check only matched "0", "root", and "0:0",
+        # silently passing "0:1000", "root:nogroup", and "root:root"
+        # even though uid 0 runs as root per CIS Docker Benchmark 4.1
+        # regardless of gid.
+        uid_part = v.split(":", 1)[0].strip()
+        if uid_part in ("0", "root"):
             out.append(_finding(
                 _RULES["DC-008"], svc.name, s.line,
                 "service " + svc.name
                 + " sets user: " + v + " (runs as root)",
-                hint="CIS Docker Benchmark 4.1: a non-root uid is required.",
+                hint="CIS Docker Benchmark 4.1: a non-root uid is required. The group portion of user: user[:group] does not change the uid-0 posture.",
             ))
     return out
 

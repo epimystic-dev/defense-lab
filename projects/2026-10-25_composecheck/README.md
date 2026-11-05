@@ -104,7 +104,7 @@ printed alongside each finding under `cite:`.
 | DC-005 | MEDIUM | Service does not drop `ALL` capabilities (recommended posture is `cap_drop: [ALL]` + targeted `cap_add`) | CIS Docker Benchmark 5.3 |
 | DC-006 | HIGH | Service bind-mounts the Docker socket (`/var/run/docker.sock`) | CIS Docker Benchmark 5.31; OWASP Docker Top 10 D02 |
 | DC-007 | HIGH | Service hard-codes a secret-shaped environment value (not a `${VAR}` reference) | CIS Docker Benchmark 5.3; CWE-798 |
-| DC-008 | MEDIUM | Service has no `user:` or sets `user: root` | CIS Docker Benchmark 4.1 |
+| DC-008 | MEDIUM | Service has no `user:`, or the uid portion of `user: uid[:gid]` is `0` / `root` (gid is irrelevant to root-ness) | CIS Docker Benchmark 4.1 |
 | DC-009 | MEDIUM | Service has no resource limits (`mem_limit`, `cpus`, or `deploy.resources.limits`) | CIS Docker Benchmark 5.11; NIST SP 800-190 section 4.4.6 |
 | DC-010 | HIGH | Service weakens `security_opt` (`seccomp:unconfined`, `apparmor:unconfined`, `no-new-privileges:false`) | CIS Docker Benchmark 5.21; 5.1 |
 

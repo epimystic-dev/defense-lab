@@ -173,6 +173,99 @@ services:
 """
         self.assertIn("DC-008", _ids(text))
 
+    def test_uid_zero_with_nonroot_group_fires(self):
+        # user: "0:1000" runs as uid 0 regardless of the gid; the group
+        # portion does not affect root-ness. Previously this passed
+        # silently because the check only matched the exact strings
+        # "0", "root", and "0:0".
+        text = """\
+version: "3.8"
+services:
+  app:
+    image: nginx:1.25
+    user: "0:1000"
+    cpus: 0.5
+    cap_drop:
+      - ALL
+"""
+        self.assertIn("DC-008", _ids(text))
+
+    def test_root_with_nonroot_group_fires(self):
+        # user: "root:nogroup" is a plausible-looking "hardened" value;
+        # the operator thinks naming a non-root group drops privilege,
+        # but Docker uses the user portion to pick the uid and nogroup
+        # does not change the fact that this runs as uid 0.
+        text = """\
+version: "3.8"
+services:
+  app:
+    image: nginx:1.25
+    user: "root:nogroup"
+    cpus: 0.5
+    cap_drop:
+      - ALL
+"""
+        self.assertIn("DC-008", _ids(text))
+
+    def test_root_with_root_group_fires(self):
+        # Parity with the pre-fix "0:0" case for the symbolic spelling.
+        text = """\
+version: "3.8"
+services:
+  app:
+    image: nginx:1.25
+    user: "root:root"
+    cpus: 0.5
+    cap_drop:
+      - ALL
+"""
+        self.assertIn("DC-008", _ids(text))
+
+    def test_uid_zero_with_group_unquoted_fires(self):
+        # YAML parses 0:1000 as a scalar; the uid portion is still 0.
+        text = """\
+version: "3.8"
+services:
+  app:
+    image: nginx:1.25
+    user: 0:1000
+    cpus: 0.5
+    cap_drop:
+      - ALL
+"""
+        self.assertIn("DC-008", _ids(text))
+
+    def test_nonroot_uid_with_gid_zero_clean(self):
+        # Disjointness pin: uid 1000 with gid 0 is not uid 0 and must
+        # not fire DC-008. gid-0 group membership is a different and
+        # narrower concern (file-group access) that this rule does not
+        # own.
+        text = """\
+version: "3.8"
+services:
+  app:
+    image: nginx:1.25
+    user: "1000:0"
+    cpus: 0.5
+    cap_drop:
+      - ALL
+"""
+        self.assertNotIn("DC-008", _ids(text))
+
+    def test_nonroot_user_baseline_clean(self):
+        # Baseline pin: a well-formed non-root user:group stays clean.
+        text = """\
+version: "3.8"
+services:
+  app:
+    image: nginx:1.25
+    user: "1001:1001"
+    cpus: 0.5
+    cap_drop:
+      - ALL
+"""
+        self.assertNotIn("DC-008", _ids(text))
+
 
 class DC009ResourceLimitsTests(unittest.TestCase):
     def test_no_limits_fires(self):
