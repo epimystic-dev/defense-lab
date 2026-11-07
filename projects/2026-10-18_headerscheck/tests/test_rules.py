@@ -403,6 +403,144 @@ class Hdr016Tests(unittest.TestCase):
         self.assertNotIn("HDR-016", rule_ids(scan_string(text, HTTPS)))
 
 
+class Hdr017Tests(unittest.TestCase):
+    """RFC 6265bis section 4.1.3 cookie-name prefix constraints.
+
+    A cookie whose name begins with '__Secure-' or '__Host-' is
+    silently rejected by the browser unless the attached constraints
+    are met. The fire-condition is independent of response scheme
+    because the browser's storage model (section 5.5) enforces the
+    prefix regardless of how the response was captured.
+    """
+
+    def test_secure_prefix_missing_secure_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __Secure-sid=abc; HttpOnly; Path=/;"
+            " SameSite=Strict\n"
+        )
+        self.assertIn("HDR-017", rule_ids(scan_string(text, HTTPS)))
+
+    def test_secure_prefix_with_secure_is_clean(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __Secure-sid=abc; Secure; HttpOnly; Path=/;"
+            " SameSite=Strict\n"
+        )
+        self.assertNotIn("HDR-017", rule_ids(scan_string(text, HTTPS)))
+
+    def test_secure_prefix_fires_even_on_http(self):
+        # Storage-time check in RFC 6265bis section 5.5 applies
+        # regardless of the response scheme; HDR-013 (missing Secure on
+        # HTTPS) correctly stays silent here, but HDR-017 still fires
+        # on the prefix-specific rejection.
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Set-Cookie: __Secure-sid=abc; HttpOnly; Path=/;"
+            " SameSite=Strict\n"
+        )
+        findings = scan_string(text, HTTP)
+        ids = rule_ids(findings)
+        self.assertIn("HDR-017", ids)
+        self.assertNotIn("HDR-013", ids)
+
+    def test_lowercase_prefix_does_not_fire(self):
+        # RFC 6265bis sections 4.1.3.1 and 4.1.3.2 specify a
+        # case-sensitive match; '__secure-' is not the prefix.
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __secure-sid=abc; HttpOnly; Path=/;"
+            " SameSite=Strict\n"
+        )
+        self.assertNotIn("HDR-017", rule_ids(scan_string(text, HTTPS)))
+
+    def test_host_prefix_with_domain_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __Host-sid=abc; Secure; Path=/;"
+            " Domain=example.test; HttpOnly; SameSite=Strict\n"
+        )
+        findings = [f for f in scan_string(text, HTTPS)
+                    if f.rule_id == "HDR-017"]
+        self.assertTrue(findings)
+        self.assertEqual(findings[0].severity, Severity.HIGH)
+        self.assertIn("Domain", findings[0].message)
+
+    def test_host_prefix_with_wrong_path_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __Host-sid=abc; Secure; Path=/account;"
+            " HttpOnly; SameSite=Strict\n"
+        )
+        findings = [f for f in scan_string(text, HTTPS)
+                    if f.rule_id == "HDR-017"]
+        self.assertTrue(findings)
+        self.assertIn("/account", findings[0].message)
+
+    def test_host_prefix_missing_path_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __Host-sid=abc; Secure; HttpOnly;"
+            " SameSite=Strict\n"
+        )
+        findings = [f for f in scan_string(text, HTTPS)
+                    if f.rule_id == "HDR-017"]
+        self.assertTrue(findings)
+        self.assertIn("Path attribute is missing", findings[0].message)
+
+    def test_host_prefix_missing_secure_fires(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __Host-sid=abc; Path=/; HttpOnly;"
+            " SameSite=Strict\n"
+        )
+        findings = [f for f in scan_string(text, HTTPS)
+                    if f.rule_id == "HDR-017"]
+        self.assertTrue(findings)
+        self.assertIn("Secure", findings[0].message)
+
+    def test_host_prefix_correct_is_clean(self):
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __Host-sid=abc; Secure; Path=/; HttpOnly;"
+            " SameSite=Strict\n"
+        )
+        self.assertNotIn("HDR-017", rule_ids(scan_string(text, HTTPS)))
+
+    def test_plain_cookie_does_not_fire(self):
+        # Disjointness pin: a cookie without the prefix is never a
+        # HDR-017 case even if it is misconfigured elsewhere.
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: sid=abc; HttpOnly\n"
+        )
+        self.assertNotIn("HDR-017", rule_ids(scan_string(text, HTTPS)))
+
+    def test_secure_prefix_missing_secure_on_https_also_fires_hdr013(self):
+        # HDR-013 (generic HTTPS cookie missing Secure) and HDR-017
+        # (specific prefix rejection) point at different failure modes
+        # for the same underlying omission; the operator should see
+        # both findings when both apply.
+        text = http_response(
+            "Content-Type: application/json\n"
+            "Strict-Transport-Security: max-age=31536000\n"
+            "Set-Cookie: __Secure-sid=abc; HttpOnly; Path=/;"
+            " SameSite=Strict\n"
+        )
+        ids = rule_ids(scan_string(text, HTTPS))
+        self.assertIn("HDR-013", ids)
+        self.assertIn("HDR-017", ids)
+
+
 class RegistryIntegrityTests(unittest.TestCase):
     def test_rule_ids_are_unique(self):
         ids = [r.id for r in REGISTRY]

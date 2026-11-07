@@ -87,6 +87,7 @@ appears under `cite:` for every finding.
 | HDR-014 | MEDIUM | Set-Cookie is missing HttpOnly | IETF RFC 6265bis 5.6; ASVS V3.4.2 |
 | HDR-015 | MEDIUM | Set-Cookie is missing SameSite | IETF RFC 6265bis 5.4; ASVS V3.4.3 |
 | HDR-016 | HIGH | `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true` | Fetch Living Standard; W3C CORS |
+| HDR-017 | HIGH | Set-Cookie with `__Secure-` or `__Host-` prefix violates its RFC 6265bis section 4.1.3 constraints (silently rejected by the browser) | IETF RFC 6265bis 4.1.3.1, 4.1.3.2, 5.5 |
 
 An internal rule `HDR-000` surfaces IO / parse errors as a HIGH
 finding so every result shares one verdict rollup.

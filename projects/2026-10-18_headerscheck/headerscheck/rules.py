@@ -1,6 +1,6 @@
 """Rule registry for headerscheck.
 
-Sixteen security-header posture rules on a captured HTTP response,
+Seventeen security-header posture rules on a captured HTTP response,
 each citing the public control it implements. Rule IDs use the
 ``HDR-`` prefix; the lab-wide shared surface exposes this list as
 ``ALL_RULES``.
@@ -12,7 +12,8 @@ Rules are grounded in three public sources:
     recommended to carry, with per-header guidance.
   * OWASP ASVS v4, section V14.4 (HTTP Security Headers), and V3.4
     (Session Management - Cookies).
-  * IETF RFC 6797 (HSTS), RFC 6265bis (cookies), and the CSP Level 3
+  * IETF RFC 6797 (HSTS), RFC 6265bis (cookies - including section
+    4.1.3 cookie-name prefix constraints), and the CSP Level 3
     specification published by the W3C.
 
 The rules capture SHAPE defects visible in the operator's saved
@@ -545,6 +546,74 @@ def _check_cookie_samesite(response, path, options, context):
     return out
 
 
+def _check_cookie_prefix_constraints(response, path, options, context):
+    # RFC 6265bis section 4.1.3 attaches additional client-side
+    # constraints to two cookie-name prefixes. The match is
+    # case-sensitive (RFC 6265bis sections 4.1.3.1 and 4.1.3.2 both
+    # specify "case-sensitive match"). A cookie that fails a prefix
+    # constraint is "ignored entirely" by the browser's storage model
+    # (RFC 6265bis section 5.5), so the operator's intended session
+    # posture is dead at the client with no header-level signal: the
+    # cookie never stores, the session never persists, yet the server
+    # emitted a correct-looking Set-Cookie line.
+    citation = (
+        "IETF RFC 6265bis section 4.1.3.1 (__Secure- prefix) and"
+        " section 4.1.3.2 (__Host- prefix); section 5.5 storage model"
+        " ignores the cookie when prefix constraints are not met"
+    )
+    out: List[Finding] = []
+    for raw in response.get_all("Set-Cookie"):
+        attrs = parse_cookie_attributes(raw)
+        name = attrs.get("__name")
+        if not name:
+            continue
+        if name.startswith("__Secure-"):
+            if "secure" not in attrs:
+                out.append(_mk(
+                    "HDR-017", Severity.HIGH,
+                    "Set-Cookie '" + name + "' has the '__Secure-'"
+                    " prefix but no Secure attribute; browsers silently"
+                    " reject the cookie (RFC 6265bis 4.1.3.1)",
+                    "Set-Cookie", path,
+                    "add the Secure attribute, or drop the '__Secure-'"
+                    " prefix if the cookie is not HTTPS-only",
+                    citation,
+                ))
+            continue
+        if name.startswith("__Host-"):
+            violations: List[str] = []
+            if "secure" not in attrs:
+                violations.append("Secure attribute is missing")
+            cookie_path = attrs.get("path")
+            if cookie_path is None:
+                violations.append(
+                    "Path attribute is missing (must be '/')"
+                )
+            elif cookie_path.strip() != "/":
+                violations.append(
+                    "Path is '" + cookie_path + "' (must be '/')"
+                )
+            if "domain" in attrs:
+                violations.append(
+                    "Domain attribute is present (must be absent)"
+                )
+            if violations:
+                out.append(_mk(
+                    "HDR-017", Severity.HIGH,
+                    "Set-Cookie '" + name + "' has the '__Host-' prefix"
+                    " but violates its constraints: "
+                    + "; ".join(violations)
+                    + "; browsers silently reject the cookie (RFC"
+                    " 6265bis 4.1.3.2)",
+                    "Set-Cookie", path,
+                    "ensure the cookie is set with Secure, Path=/, and"
+                    " no Domain attribute; otherwise drop the '__Host-'"
+                    " prefix",
+                    citation,
+                ))
+    return out
+
+
 def _check_cors_credentials_wildcard(response, path, options, context):
     citation = (
         "Fetch Living Standard section 'CORS protocol'; W3C CORS;"
@@ -790,6 +859,24 @@ REGISTRY: List[Rule] = [
         ),
         citation="Fetch Living Standard; W3C CORS",
         check=_check_cors_credentials_wildcard,
+    ),
+    Rule(
+        id="HDR-017",
+        severity=Severity.HIGH,
+        title=(
+            "Set-Cookie with '__Secure-' or '__Host-' prefix violates"
+            " its RFC 6265bis constraints"
+        ),
+        description=(
+            "A cookie whose name begins with '__Secure-' or '__Host-'"
+            " is silently ignored by the browser unless the attached"
+            " RFC 6265bis section 4.1.3 constraints are met; the"
+            " session never stores at the client."
+        ),
+        citation=(
+            "IETF RFC 6265bis sections 4.1.3.1, 4.1.3.2, and 5.5"
+        ),
+        check=_check_cookie_prefix_constraints,
     ),
 ]
 
