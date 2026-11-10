@@ -64,7 +64,7 @@ printed alongside each finding under `cite:`.
 | SSH-005 | MEDIUM | X11Forwarding is `yes` | CIS 5.2.4 |
 | SSH-006 | MEDIUM | MaxAuthTries exceeds 4 | CIS 5.2.5 |
 | SSH-007 | MEDIUM / HIGH | LoginGraceTime exceeds 60s (HIGH when 0) | CIS 5.2.17 |
-| SSH-008 | MEDIUM | ClientAliveInterval 0 / missing or ClientAliveCountMax > 3 | CIS 5.2.18 / 5.2.19 |
+| SSH-008 | MEDIUM | ClientAliveInterval 0 / missing, ClientAliveCountMax > 3, or ClientAliveCountMax == 0 (sshd_config(5) documents 0 as disabling connection termination) | CIS 5.2.18 / 5.2.19 |
 | SSH-009 | HIGH | HostbasedAuthentication is `yes` | CIS 5.2.8; NIST SP 800-53 IA-2 |
 | SSH-010 | MEDIUM | IgnoreRhosts is `no` or unspecified | CIS 5.2.7 |
 | SSH-011 | HIGH | Ciphers contains a value outside the Mozilla modern allowlist | Mozilla OpenSSH Guidelines |

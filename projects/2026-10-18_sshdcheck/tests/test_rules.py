@@ -156,6 +156,46 @@ class Ssh008Tests(unittest.TestCase):
         self.assertTrue(f)
         self.assertIn("not an integer", f[0].message)
 
+    def test_zero_count_fires_even_with_healthy_interval(self):
+        # sshd_config(5) is explicit: a zero ClientAliveCountMax
+        # "disables connection termination." The operator who sets a
+        # short interval and a zero count has a hardened-looking file
+        # that in fact defeats the whole mechanism. Pre-fix regression:
+        # this shape returned ZERO SSH-008 findings.
+        text = (
+            "ClientAliveInterval 300\n"
+            "ClientAliveCountMax 0\n"
+        )
+        f = [x for x in scan_string(text) if x.rule_id == "SSH-008"]
+        self.assertEqual(len(f), 1)
+        self.assertEqual(f[0].severity, Severity.MEDIUM)
+        self.assertIn("ClientAliveCountMax is 0", f[0].message)
+        self.assertIn("disabling connection termination", f[0].message)
+        self.assertEqual(f[0].directive, "ClientAliveCountMax")
+
+    def test_zero_count_composes_with_zero_interval(self):
+        # Composition pin: two independent defects fire two findings.
+        text = (
+            "ClientAliveInterval 0\n"
+            "ClientAliveCountMax 0\n"
+        )
+        f = [x for x in scan_string(text) if x.rule_id == "SSH-008"]
+        self.assertEqual(len(f), 2)
+        directives = sorted(x.directive for x in f)
+        self.assertEqual(
+            directives,
+            ["ClientAliveCountMax", "ClientAliveInterval"],
+        )
+
+    def test_count_one_is_clean(self):
+        # Boundary pin: 1 is a positive value <= 3 and is not the
+        # disabled-termination case, so the zero-branch must not fire.
+        text = (
+            "ClientAliveInterval 300\n"
+            "ClientAliveCountMax 1\n"
+        )
+        self.assertNotIn("SSH-008", rule_ids(scan_string(text)))
+
 
 class Ssh009Tests(unittest.TestCase):
     def test_hostbased_yes_fires(self):

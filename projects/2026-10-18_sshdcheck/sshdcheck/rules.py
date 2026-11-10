@@ -328,7 +328,17 @@ def _check_login_grace_time(index, path, content, options, context):
 
 
 def _check_client_alive(index, path, content, options, context):
-    """ClientAliveInterval must be > 0 and ClientAliveCountMax <= 3."""
+    """ClientAliveInterval must be > 0 and ClientAliveCountMax must be
+    in 1..3.
+
+    Per sshd_config(5), ``ClientAliveCountMax 0`` "disables connection
+    termination" entirely - the alive messages are still sent, but no
+    missed reply ever drops the session. An operator who paired a
+    short ``ClientAliveInterval`` with ``ClientAliveCountMax 0`` sees
+    a hardened-looking file that in fact defeats the whole mechanism.
+    The ``cmax == 0`` branch flags this shape alongside the existing
+    ``cmax > 3`` branch.
+    """
     citation = "CIS 5.2.18 / 5.2.19"
     interval = effective_global(index, "ClientAliveInterval")
     count = effective_global(index, "ClientAliveCountMax")
@@ -377,7 +387,24 @@ def _check_client_alive(index, path, content, options, context):
                 "ClientAliveCountMax value is not an integer: "
                 + count.value,
                 "ClientAliveCountMax", count.line, path,
-                "set ClientAliveCountMax to 3 or less", citation,
+                "set ClientAliveCountMax to 3 or less (and greater than 0)",
+                citation,
+            ))
+        elif cmax == 0:
+            # sshd_config(5): "Setting a zero ClientAliveCountMax
+            # disables connection termination." The alive messages
+            # still ride the connection, so a packet trace looks
+            # healthy, but no missed reply ever drops the session.
+            out.append(_mk(
+                "SSH-008", Severity.MEDIUM,
+                "ClientAliveCountMax is 0; sshd_config(5) documents this"
+                " as disabling connection termination entirely, so"
+                " ClientAliveInterval has no effect and idle sessions"
+                " can persist indefinitely",
+                "ClientAliveCountMax", count.line, path,
+                "set ClientAliveCountMax to a positive value no greater"
+                " than 3 (CIS 5.2.19 recommends 3)",
+                citation,
             ))
         elif cmax > 3:
             out.append(_mk(
@@ -708,8 +735,11 @@ REGISTRY: List[Rule] = [
         severity=Severity.MEDIUM,
         title="ClientAlive settings leave idle sessions open",
         description=(
-            "ClientAliveInterval 0 or missing, and ClientAliveCountMax"
-            " > 3, leave orphaned sessions reachable indefinitely."
+            "ClientAliveInterval 0 or missing leaves orphaned sessions"
+            " reachable indefinitely; ClientAliveCountMax > 3 enlarges"
+            " the idle-session window; ClientAliveCountMax == 0"
+            " disables connection termination per sshd_config(5)"
+            " regardless of the interval."
         ),
         citation="CIS 5.2.18 / 5.2.19",
         check=_check_client_alive,
